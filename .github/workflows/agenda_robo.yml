@@ -1,0 +1,27 @@
+name: Executar Robo Diario
+
+on:
+  schedule:
+    # Configurado para rodar todos os dias às 13:00 UTC (que equivale às 10:00 da manhã no horário de Brasília)
+    - cron: '0 13 * * *'
+  workflow_dispatch: # Permite que tu possas clicar num botão para rodar o robô manualmente quando quiseres
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Baixar codigo do repositorio
+      uses: actions/checkout@v3
+
+    - name: Configurar o Python
+      uses: actions/setup-python@v4
+      with:
+        python-python: '3.10'
+
+    - name: Instalar dependencias
+      run: |
+        pip install -r requirements.txt
+
+    - name: Executar o Monitor de Protocolos
+      run: python monitor.py
