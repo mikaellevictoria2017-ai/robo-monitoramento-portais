@@ -95,10 +95,16 @@ def executar_robo():
     df = df.fillna("")
     print(f"📊 Aba '{nome_aba}' carregada com sucesso!")
     
-    driver = webdriver.Chrome()
-    driver.maximize_window()
-    wait = WebDriverWait(driver, 25)
-    processos_alterados = []
+    # === CONFIGURAÇÃO PARA RODAR NA NUVEM (SEM TELA) ===
+    opcoes = webdriver.ChromeOptions()
+    opcoes.add_argument("--headless=new") # Força o Chrome a rodar em segundo plano
+    opcoes.add_argument("--no-sandbox")
+    opcoes.add_argument("--disable-dev-shm-usage")
+    opcoes.add_argument("--disable-gpu")
+    opcoes.add_argument("--window-size=1920,1080")
+    
+    driver = webdriver.Chrome(options=opcoes)
+    # ===================================================
     
     try:
         # LOGIN NO PORTAL
