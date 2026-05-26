@@ -1,13 +1,12 @@
+import os
 import time
 from datetime import datetime
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 import pandas as pd
 from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
+# Se você usa o email:
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 # ==================== CONFIGURAÇÕES DE ACESSO E LINKS ====================
 EMAIL_REMETENTE = "mikaellevictoria2017@gmail.com"
@@ -283,16 +282,11 @@ def executar_robo():
         driver.quit()
         print("Navegador fechado.")
 
+
+# ... (tudo igual para cima)
+    print("Navegador fechado.")
+
 if __name__ == "__main__":
     print("🤖 ROBÔ MULTI-ABAS ATIVADO!")
     executar_robo()
-    
-    executou_hoje = False
-    while True:
-        agora = datetime.now()
-        if agora.hour == 10 and agora.minute == 0 and not executou_hoje:
-            executar_robo()
-            executou_hoje = True
-        if agora.hour == 10 and agora.minute > 0:
-            executou_hoje = False
-        time.sleep(30)
+    print("✅ Execução diária concluída com sucesso! Desligando a máquina da nuvem.")
