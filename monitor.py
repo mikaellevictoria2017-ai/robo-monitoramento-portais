@@ -13,7 +13,7 @@ from selenium.webdriver.chrome.options import Options
 
 # ==================== CONFIGURAÇÕES DE ACESSO E LINKS ====================
 EMAIL_REMETENTE = "mikaellevictoria2017@gmail.com"
-SENHA_REMETENTE = os.environ.get("Artesan@2026") # 👈 Puxa com segurança do GitHub Secrets
+SENHA_REMETENTE = os.environ.get("ihfxftkgihyuniob") # 👈 Puxa com segurança do GitHub Secrets
 EMAIL_DESTINATARIOS = ["santos.micaelle2006@gmail.com"]
 LINK_PLANILHA = "https://artesanourbanismo-my.sharepoint.com/:x:/g/personal/mvitoria_artesanourbanismo_com_br/IQBI7DqiCzMtSIrLcPwTnM2SAamaiye_3EPs-HAEKli1mZo?e=Zjekvn"
 
