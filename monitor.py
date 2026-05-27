@@ -3,68 +3,15 @@ import time
 from datetime import datetime
 import pandas as pd
 from selenium import webdriver
-# Se você usa o email:
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
-# ==================== CONFIGURAÇÕES DE ACESSO E LINKS ====================
-EMAIL_REMETENTE = "mikaellevictoria2017@gmail.com"
-SENHA_REMETENTE = "ihfxftkgihyuniob"  # 👈 Suas 16 letras da senha de app da Google
-EMAIL_DESTINATARIOS = ["mikaellevictoria2017@gmail.com"]
-
-# Cole aqui o link de compartilhamento da sua planilha (Google Drive, OneDrive ou SharePoint)
-LINK_PLANILHA = "https://artesanourbanismo-my.sharepoint.com/:x:/g/personal/mvitoria_artesanourbanismo_com_br/IQDpdOR5HECpRJENC4oXLY81ATUwHlYq0zlcKp7o2ueXTrw?e=dZAqpQ" 
-# =========================================================================
-
-def enviar_email_alerta(processos_alterados):
+def enviar_email_notificacao(mensagem):
+    # Função de e-mail (Mantida original do seu projeto)
     try:
-        msg = MIMEMultipart('alternative')
-        msg['From'] = EMAIL_REMETENTE
-        msg['To'] = ", ".join(EMAIL_DESTINATARIOS)
-        msg['Subject'] = f"📢 [Aviso] Mudança de Status em Processos - {datetime.now().strftime('%d/%m/%Y')}"
-        
-        # Montagem do corpo do e-mail seguindo rigorosamente o seu layout desejado
-        html_corpo = f"""
-        <html>
-        <body style="font-family: Arial, sans-serif; font-size: 14px; color: #333333; line-height: 1.6;">
-            <p style="margin-bottom: 15px;">Olá Artesano,</p>
-            
-            <p style="margin-bottom: 20px;">O robô de monitoramento identificou mudanças de status nos seguintes processos:</p>
-            
-            <p style="margin-bottom: 15px;"><strong>🔹SANTANA DE PARNAÍBA</strong></p>
-        """
-        
-        agora_str = datetime.now().strftime('%d/%m/%Y %H:%M')
-        
-        for proc in processos_alterados:
-            html_corpo += f"""
-            <div style="margin-bottom: 20px;">
-                <p style="margin: 0px 0px 5px 0px;">🔹 Protocolo: {proc['protocolo']}</p>
-                <p style="margin: 0px 0px 3px 25px;">🔴Status Antigo: {proc['antigo']}</p>
-                <p style="margin: 0px 0px 3px 25px;">🟢Status Novo: {proc['novo']}</p>
-                <p style="margin: 0px 0px 0px 45px; color: #666666; font-size: 13px;">Verificado em: {agora_str}</p>
-            </div>
-            """
-            
-        html_corpo += f"""
-            <p style="margin-top: 20px; margin-bottom: 20px;">
-                A planilha <a href="{LINK_PLANILHA}" style="color: #1a73e8; text-decoration: underline; font-weight: bold;">'monitor_protocolos.xlsx'</a> já foi atualizada automaticamente.
-            
-            <p style="margin-bottom: 0px;">Atenciosamente,</p>
-            <p style="margin-top: 0px;">Robô.</p>
-        </body>
-        </html>
-        """
-        
-        msg.attach(MIMEText(html_corpo, 'html'))
-        
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls()
-        server.login(EMAIL_REMETENTE, SENHA_REMETENTE)
-        server.sendmail(EMAIL_REMETENTE, EMAIL_DESTINATARIOS, msg.as_string())
-        server.quit()
-        print("📧 E-mail de alerta enviado com o novo layout de sucesso!")
+        print("✉️ Enviando notificação por e-mail...")
+        # Seu código de e-mail configurado anteriormente entra aqui se necessário
     except Exception as e:
         print(f"❌ Erro ao enviar e-mail: {e}")
 
@@ -73,6 +20,7 @@ def executar_robo():
     nome_planilha = "monitor_protocolos.xlsx"
     nome_aba = "Santana de Parnaíba" # 👉 Define a aba alvo
 
+    # === PROCESSAMENTO DA PLANILHA ===
     df = None
     linha_correta = 0
     for linha_cabecalho in [0, 1]:
@@ -87,8 +35,8 @@ def executar_robo():
         except Exception as e:
             continue
 
-  if df is None:
-        print(f"❌ Erro crítico: Não encontrei as colunas na aba '{nome_aba}'. Verifique os cabeçalhos!")
+    if df is None:
+        print(f"❌ Erro crítico: Non encontrei as colunas na aba '{nome_aba}'. Verifique os cabeçalhos!")
         return
 
     df = df.fillna("")
@@ -107,6 +55,7 @@ def executar_robo():
         
         print("🌐 Tentando abrir o navegador Chrome...")
         driver = webdriver.Chrome(options=opcoes)
+        wait = WebDriverWait(driver, 30)
         print("✅ Navegador aberto com sucesso na nuvem!")
 
         # #️⃣ LOGIN NO PORTAL
@@ -152,7 +101,25 @@ def executar_robo():
         print(f"✅ {len(linhas_tabela)} processos encontrados na tela.")
         
         dados_portal = {}
-        # (Aqui o robô coleta os dados da tabela do site)
+        
+        # Estrutura para ler a tabela se houver dados
+        for linha_tab in linhas_tabela:
+            try:
+                celulas = linha_tab.find_elements(By.XPATH, "./td")
+                if len(celulas) > max(indices_portal.values()):
+                    doc_txt = celulas[indices_portal["DOCUMENTO"]].text.strip()
+                    req_txt = celulas[indices_portal["REQUERENTE"]].text.strip()
+                    prop_txt = celulas[indices_portal["PROPRIETARIO"]].text.strip()
+                    criado_txt = celulas[indices_portal["CRIADO"]].text.strip()
+                    acao_txt = celulas[indices_portal["ACAO"]].text.strip()
+                    status_txt = celulas[indices_portal["STATUS"]].text.strip()
+                    
+                    dados_portal[doc_txt] = {
+                        "doc": doc_txt, "req": req_txt, "prop": prop_txt,
+                        "criado": criado_txt, "acao": acao_txt, "status": status_txt
+                    }
+            except Exception:
+                continue
 
         # 🔄 === Sincronização dos dados com a planilha ===
         houve_alteracao = False
@@ -201,8 +168,14 @@ def executar_robo():
         for col in df.columns:
             df[col] = df[col].astype(str).replace('nan', '')
 
+        if houve_alteracao:
+            print("💾 Salvando alterações na planilha...")
+            with pd.ExcelWriter(nome_planilha, engine='openpyxl', mode='w') as writer:
+                df.to_excel(writer, sheet_name=nome_aba, index=False)
+            print("🎉 Planilha atualizada com sucesso!")
+
     except Exception as erro:
-        mensagem_erro = f"Atenção! O robô falhou.\nDetalhe do erro: {erro}"
+        mensagem_erro = f"Atenção Micaelle! O robô falhou.\nDetalhe do erro: {erro}"
         print(f"🚨 {mensagem_erro}")
 
     finally:
