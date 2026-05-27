@@ -15,7 +15,7 @@ def enviar_email_notificacao(mensagem):
     except Exception as e:
         print(f"❌ Erro ao enviar e-mail: {e}")
 
-def ejecutar_robo():
+def executar_robo():
     print(f"\n===== INICIANDO VERIFICAÇÃO: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')} =====")
     nome_planilha = "monitor_protocolos.xlsx"
     nome_aba = "Santana de Parnaíba"
