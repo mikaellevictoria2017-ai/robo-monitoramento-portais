@@ -189,43 +189,36 @@ def executar_robo():
         col_status = [c for c in df.columns if "STATUS" in c][0]
         col_modificado = [c for c in df.columns if "MODIFICADO" in c][0] if any("MODIFICADO" in c for c in df.columns) else "MODIFICADO EM"
         
-        print("🔎 Comparando dados da planilha com o portal...")
-        for index, text_linha in df.iterrows():
-            if str(text_linha["ATIVO"]).strip().upper() == "SIM":
-                protocolo = str(text_linha["PROTOCOLO"]).strip()
-                status_antigo = str(text_linha[col_status]).strip()
-                
-                # Remove espaços invisíveis para comparação precisa
-                protocolo_planilha_limpo = protocolo.replace(" ", "").upper()
-                
-                dados_proc = None
-                for k in dados_portal.keys():
-                    protocolo_portal_limpo = k.replace(" ", "").upper()
-                    if protocolo_planilha_limpo in protocolo_portal_limpo or protocolo_portal_limpo in protocolo_planilha_limpo:
-                        dados_proc = dados_portal[k]
-                        break
-                
-                if dados_proc:
-                    df.at[index, col_doc] = str(dados_proc["doc"])
-                    df.at[index, col_req] = str(dados_proc["req"])
-                    df.at[index, col_prop] = str(dados_proc["prop"])
-                    df.at[index, col_criado] = str(dados_proc["criado"])
-                    df.at[index, col_acao] = str(dados_proc["acao"])
-                    
-                    status_novo = dados_proc["status"]
-                    
-                    if status_antigo != status_novo:
-                        print(f"🚨 ALTERAÇÃO DETECTADA! {protocolo} mudou de '{status_antigo}' para '{status_novo}'")
-                        processos_alterados.append({
-                            'protocolo': protocolo, 'antigo': status_antigo, 'novo': status_novo
-                        })
-                        df.at[index, col_status] = str(status_novo)
-                        df.at[index, col_modificado] = str(agora_str)
-                        houve_alteracao = True
-                   else:
-                print(f"✅ {protocolo}: Status igual ao do portal ('{status_antigo}').")
-        else:
-            print(f"❓ {protocolo}: Não foi localizado na página atual do portal.")
+        print("🔮 Comparando dados da planilha com o portal...")
+for index, text_linha in df.iterrows():
+    if str(text_linha["ATIVO"]).strip().upper() != "SIM":
+        continue  # Pula os processos inativos de forma limpa
+
+    protocolo = str(text_linha["PROTOCOLO"]).strip().upper()
+    status_antigo = str(text_linha[col_status]).strip()
+
+    linha_encontrada = None
+    for dado in dados_portal:
+        if protocolo in dado.upper():
+            linha_encontrada = dados_portal[dado]
+            break
+
+    if not linha_encontrada:
+        print(f"❓ {protocolo}: Não foi localizado na página atual do portal.")
+        continue
+
+    status_novo = linha_encontrada["status"]
+
+    if status_antigo != status_novo:
+        print(f"⚠️ ALTERAÇÃO DETECTADA! {protocolo} mudou de '{status_antigo}' para '{status_novo}'")
+        processos_alterados.append({
+            'protocolo': protocolo, 'antigo': status_antigo, 'novo': status_novo
+        })
+        df.at[index, col_status] = str(status_novo)
+        df.at[index, col_modificado] = str(agora_str)
+        houve_alteracao = True
+    else:
+        print(f"✅ {protocolo}: Status igual ao do portal ('{status_antigo}').")
 
 for col in df.columns:
     df[col] = df[col].astype(str).replace('nan', '')
@@ -269,8 +262,8 @@ while not salvo_com_sucesso and tentativas < 3:
         print(f"❌ Erro ao salvar planilha: {e}")
         break
 
-# Envia o e-mail apenas se houve alteração e a lista não estiver vazia
-if houve_alteracao and processos_alterados:
+# Envio do e-mail de alerta
+if houve_alteracao and procesos_alterados:
     if not SENHA_GMAIL:
         print("⚠️ Alerta do Sistema: A variável 'SENHA_GMAIL' veio vazia da nuvem. O e-mail não pôde ser enviado.")
     else:
