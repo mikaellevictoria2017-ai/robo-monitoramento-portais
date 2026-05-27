@@ -10,19 +10,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Baixar codigo do repositorio
-      uses: actions/checkout@v3
+      - name: Baixar codigo do repositorio
+        uses: actions/checkout@v3
 
-    - name: Configurar o Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.10'
+      - name: Configurar o Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
 
-    - name: Instalar dependencias do Python
-      run: |
-        pip install -r requirements.txt
+      - name: Instalar dependencias do Python
+        run: |
+          pip install -r requirements.txt
 
-    - name: Executar o Monitor de Protocolos
-      env:
-        SENHA_GMAIL: ${{ secrets.SENHA_GMAIL }}
-      run: python monitor.py
+      - name: Executar o Monitor de Protocolos
+        env:
+          SENHA_GMAIL: ${{ secrets.SENHA_GMAIL }}
+        run: python monitor.py
