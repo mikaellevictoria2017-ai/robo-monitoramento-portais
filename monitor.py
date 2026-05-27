@@ -13,7 +13,6 @@ from selenium.webdriver.support import expected_conditions as EC
 # ==========================================
 # 🌐 CONFIGURAÇÕES GLOBAIS
 # ==========================================
-# Certifique-se de preencher com o e-mail da empresa ou o seu para testar
 EMAIL_REMETENTE = "caroline@artesanourbanismo.com.br"  
 EMAIL_DESTINATARIOS = ["caroline@artesanourbanismo.com.br", "mikaellevictoria2017-ai@gmail.com"]  
 
@@ -25,7 +24,7 @@ LINK_PLANILHA = "https://github.com/mikaellevictoria2017-ai/robo-monitoramento-p
 
 
 # ==========================================
-# ✉️ FUNÇÃO DE ENVIO DE E-MAIL (Corrigida)
+# ✉️ FUNÇÃO DE ENVIO DE E-MAIL
 # ==========================================
 def enviar_email_alerta(processos_alterados):
     try:
@@ -34,7 +33,6 @@ def enviar_email_alerta(processos_alterados):
         msg['To'] = ", ".join(EMAIL_DESTINATARIOS)
         msg['Subject'] = f"📢 [Aviso] Mudança de Status em Processos - {datetime.now().strftime('%d/%m/%Y')}"
 
-        # Montagem do corpo do e-mail seguindo o seu layout
         html_corpo = f"""
         <html>
         <body style="font-family: Arial, sans-serif; font-size: 14px; color: #333333; line-height: 1.6;">
@@ -45,7 +43,6 @@ def enviar_email_alerta(processos_alterados):
 
         agora_str = datetime.now().strftime('%d/%m/%Y %H:%M')
 
-        # Corrigido aqui: agora está estritamente com dois "s" (processos_alterados)
         for proc in processos_alterados:
             html_corpo += f"""
             <div style="margin-bottom: 20px;">
@@ -68,7 +65,6 @@ def enviar_email_alerta(processos_alterados):
 
         msg.attach(MIMEText(html_corpo, 'html'))
 
-        # Conexão com o servidor SMTP do Gmail
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()
         server.login(EMAIL_REMETENTE, SENHA_REMETENTE)
@@ -88,7 +84,6 @@ def executar_robo():
     nome_planilha = "monitor_protocolos.xlsx"
     nome_aba = "Santana de Parnaíba"
 
-    # === PROCESSAMENTO DA PLANILHA ===
     df = None
     for linha_cabecalho in [0, 1]:
         try:
@@ -122,7 +117,6 @@ def executar_robo():
         wait = WebDriverWait(driver, 30)
         print("✅ Navegador aberto com sucesso na nuvem!")
 
-        # LOGIN NO PORTAL
         print("Abrindo a tela de login do portal...")
         driver.get("https://santanadeparnaiba.aprova.com.br/login")
         
@@ -160,7 +154,7 @@ def executar_robo():
             except Exception:
                 continue
 
-        # 🔄 === Sincronização e Comparação ===
+        # 🔄 Sincronização e Comparação
         houve_alteracao = False
         agora_str = datetime.now().strftime('%d/%m/%Y %H:%M')
         processos_alterados = []
@@ -180,8 +174,9 @@ def executar_robo():
                         linha_encontrada = dado
                         break
 
-                if river_encontrada := linha_encontrada:
-                    celulas = river_encontrada["lista_celulas"]
+                # CORRIGIDO: Removido o termo incorreto 'river_encontrada'
+                if linha_encontrada:
+                    celulas = linha_encontrada["lista_celulas"]
                     status_novo = celulas[-2] if len(celulas) >= 2 else celulas[-1]
                     
                     if status_novo == "" and len(celulas) >= 3:
@@ -207,9 +202,8 @@ def executar_robo():
             print("💾 Salvando alterações na planilha...")
             with pd.ExcelWriter(nome_planilha, engine='openpyxl', mode='w') as writer:
                 df.to_excel(writer, sheet_name=nome_aba, index=False)
-            print("🎉 Planilha updated com sucesso!")
+            print("🎉 Planilha atualizada com sucesso!")
             
-            # Chamada da função com o nome certinho!
             enviar_email_alerta(processos_alterados)
         else:
             print("☕ Nenhuma alteração encontrada. Tudo atualizado!")
