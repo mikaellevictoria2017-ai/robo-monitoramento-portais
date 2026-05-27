@@ -189,7 +189,11 @@ def executar_robo():
         col_status = [c for c in df.columns if "STATUS" in c][0]
         col_modificado = [c for c in df.columns if "MODIFICADO" in c][0] if any("MODIFICADO" in c for c in df.columns) else "MODIFICADO EM"
         
-        print("🔮 Comparando dados da planilha com o portal...")
+        # ==========================================
+# SEÇÃO DE COMPARAÇÃO E ATUALIZAÇÃO
+# ==========================================
+
+print("🔮 Comparando dados da planilha com o portal...")
 for index, text_linha in df.iterrows():
     if str(text_linha["ATIVO"]).strip().upper() != "SIM":
         continue  # Pula os processos inativos de forma limpa
@@ -263,7 +267,7 @@ while not salvo_com_sucesso and tentativas < 3:
         break
 
 # Envio do e-mail de alerta
-if houve_alteracao and procesos_alterados:
+if houve_alteracao and processos_alterados:
     if not SENHA_GMAIL:
         print("⚠️ Alerta do Sistema: A variável 'SENHA_GMAIL' veio vazia da nuvem. O e-mail não pôde ser enviado.")
     else:
