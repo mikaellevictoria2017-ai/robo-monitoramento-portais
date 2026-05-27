@@ -222,7 +222,7 @@ def executar_robo():
                         df.at[index, col_status] = str(status_novo)
                         df.at[index, col_modificado] = str(agora_str)
                         houve_alteracao = True
-                    else:
+                   else:
                 print(f"✅ {protocolo}: Status igual ao do portal ('{status_antigo}').")
         else:
             print(f"❓ {protocolo}: Não foi localizado na página atual do portal.")
