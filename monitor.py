@@ -115,11 +115,11 @@ def executar_robo():
         print("Preenchendo os dados de acesso...")
         campo_email = wait.until(EC.presence_of_element_located((By.XPATH, "//input[@type='email' or @name='email' or @id='email']")))
         # SUBSTITUA AQUI SEU E-MAIL DE ACESSO DO PORTAL SE NECESSÁRIO:
-        campo_email.send_keys("mvitoria@artesanourbanismo.com.br")
+        campo_email.send_keys("caroline@artesanourbanismo.com.br")
 
         campo_senha = driver.find_element(By.XPATH, "//input[@type='password' or @name='password' or @id='password']")
         # SUBSTITUA AQUI SUA SENHA DE ACESSO DO PORTAL SE NECESSÁRIO:
-        campo_senha.send_keys("SUA_SENHA_DO_PORTAL_AQUI")
+        campo_senha.send_keys("Artesan@2026")
         
         print("Clicando no botão Entrar...")
         botao_entrar = driver.find_element(By.XPATH, "//button[@type='submit' or contains(., 'Entrar')]")
@@ -223,56 +223,62 @@ def executar_robo():
                         df.at[index, col_modificado] = str(agora_str)
                         houve_alteracao = True
                     else:
-                        print(f"✅ {protocolo}: Status igual ao do portal ('{status_antigo}').")
-                else:
-                    print(f"❓ {protocolo}: Não foi localizado na página atual do portal.")
-                        
-        for col in df.columns:
-            df[col] = df[col].astype(str).replace('nan', '')
-            
-        # SALVAMENTO NA PLANILHA COM DESIGN AUTOMÁTICO PROTEGIDO
-        salvo_com_sucesso = False
-        tentativas = 0
-        while not salvo_com_sucesso and tentativas < 3:
-            try:
-                with pd.ExcelFile(nome_planilha) as reader:
-                    abas_existentes = {sheet: reader.parse(sheet) for sheet in reader.sheet_names}
-                
-                abas_existentes[nome_aba] = df
-                
-                with pd.ExcelWriter(nome_planilha, engine='openpyxl') as writer:
-                    for sheet, dados_aba in abas_existentes.items():
-                        if sheet == nome_aba:
-                            dados_aba.to_excel(writer, sheet_name=sheet, startrow=linha_correta, index=False)
-                            worksheet = writer.sheets[sheet]
-                            for col in worksheet.columns:
-                                max_len = 0
-                                col_letter = col[0].column_letter
-                                for cell in col:
-                                    if cell.value:
-                                        max_len = max(max_len, len(str(cell.value)))
-                                worksheet.column_dimensions[col_letter].width = max(max_len + 4, 12)
-                        else:
-                            dados_aba.to_excel(writer, sheet_name=sheet, index=False)
-                            
-                print(f"💾 Planilha salva. Aba '{nome_aba}' atualizada com layout perfeito!")
-                salvo_com_sucesso = True
-            except PermissionError:
-                print("⚠️ AVISO: Arquivo Excel ocupado, tentando novamente em breve...")
-                time.sleep(5)
-                tentativas += 1
-        
-        if houve_alteracao:
-            enviar_email_alerta(processos_alterados)
+                print(f"✅ {protocolo}: Status igual ao do portal ('{status_antigo}').")
         else:
-            print("☕ Nenhuma alteração de status encontrada nos processos ativos.")
-            
-    except Exception as e:
-        print(f"❌ Erro crítico na execução interna do robô: {e}")
-    finally:
-        driver.quit()
-        print("Navegador fechado com segurança pelo sistema de proteção.")
+            print(f"❓ {protocolo}: Não foi localizado na página atual do portal.")
 
-if __name__ == "__main__":
-    # Quando roda no GitHub Actions, executa imediatamente uma vez
-    executar_robo()
+for col in df.columns:
+    df[col] = df[col].astype(str).replace('nan', '')
+
+# ==========================================
+# SALVAMENTO NA PLANILHA COM DESIGN AUTOMÁTICO PROTEGIDO
+# ==========================================
+salvo_com_sucesso = False
+tentativas = 0
+
+while not salvo_com_sucesso and tentativas < 3:
+    try:
+        with pd.ExcelFile(nome_planilha) as reader:
+            abas_existentes = {sheet: reader.parse(sheet) for sheet in reader.sheet_names}
+        
+        abas_existentes[nome_aba] = df
+        
+        with pd.ExcelWriter(nome_planilha, engine='openpyxl') as writer:
+            for sheet, dados_aba in abas_existentes.items():
+                if sheet == nome_aba:
+                    # Garante que 'linha_correta' exista ou usa 0 por padrão
+                    start_row = linha_correta if 'linha_correta' in locals() else 0
+                    dados_aba.to_excel(writer, sheet_name=sheet, startrow=start_row, index=False)
+                    worksheet = writer.sheets[sheet]
+                    for col in worksheet.columns:
+                        max_len = 0
+                        col_letter = col[0].column_letter
+                        for cell in col:
+                            if cell.value:
+                                max_len = max(max_len, len(str(cell.value)))
+                        worksheet.column_dimensions[col_letter].width = max(max_len + 4, 12)
+                else:
+                    dados_aba.to_excel(writer, sheet_name=sheet, index=False)
+        
+        print(f"💾 Planilha salva. Aba '{nome_aba}' atualizada com layout perfeito!")
+        salvo_com_sucesso = True
+    except PermissionError:
+        print("⚠️ AVISO: Arquivo Excel ocupado, tentando novamente em breve...")
+        time.sleep(5)
+        tentativas += 1
+    except Exception as e:
+        print(f"❌ Erro ao salvar planilha: {e}")
+        break
+
+# Envia o e-mail apenas se houve alteração e a lista não estiver vazia
+if houve_alteracao and processos_alterados:
+    if not SENHA_GMAIL:
+        print("⚠️ Alerta do Sistema: A variável 'SENHA_GMAIL' veio vazia da nuvem. O e-mail não pôde ser enviado.")
+    else:
+        try:
+            enviar_email_alerta(processos_alterados)
+            print("✉️ E-mail de alerta enviado com sucesso!")
+        except Exception as e:
+            print(f"❌ Erro ao enviar e-mail: {e}")
+else:
+    print("🦥 Nenhuma alteração de status encontrada nos processos ativos.")
