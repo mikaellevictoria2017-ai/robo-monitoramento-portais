@@ -1,19 +1,87 @@
 import os
 import time
 from datetime import datetime
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 import pandas as pd
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-def enviar_email_notificacao(mensagem):
+# ==========================================
+# 🌐 CONFIGURAÇÕES GLOBAIS (Passo 2.1)
+# ==========================================
+# Altere para os e-mails corretos da Artesano
+EMAIL_REMETENTE = "mikaellevictoria2017@gmail.com"  
+EMAIL_DESTINATARIOS = ["mikaellevictoria2017@gmail.com"]  
+
+# Puxa a senha secreta cadastrada nas Secrets do GitHub
+SENHA_REMETENTE = os.environ.get("ihfxftkgihyuniob")
+
+# Link direto para a sua planilha no GitHub
+LINK_PLANILHA = "https://github.com/mikaellevictoria2017-ai/robo-monitoramento-portais/blob/main/monitor_protocolos.xlsx"
+
+
+# ==========================================
+# ✉️ FUNÇÃO DE ENVIO DE E-MAIL (Seu Layout)
+# ==========================================
+def enviar_email_alerta(processos_alterados):
     try:
-        print("✉️ Enviando notificação por e-mail...")
-        # Seu código de e-mail entra aqui se configurado
+        msg = MIMEMultipart('alternative')
+        msg['From'] = EMAIL_REMETENTE
+        msg['To'] = ", ".join(EMAIL_DESTINATARIOS)
+        msg['Subject'] = f"📢 [Aviso] Mudança de Status em Processos - {datetime.now().strftime('%d/%m/%Y')}"
+
+        # Montagem do corpo do e-mail seguindo o seu layout
+        html_corpo = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; font-size: 14px; color: #333333; line-height: 1.6;">
+            <p style="margin-bottom: 15px;">Olá Artesano,</p>
+            <p style="margin-bottom: 20px;">O robô de monitoramento identificou mudanças de status nos seguintes processos:</p>
+            <p style="margin-bottom: 15px;"><strong>◆ SANTANA DE PARNAÍBA</strong></p>
+        """
+
+        agora_str = datetime.now().strftime('%d/%m/%Y %H:%M')
+
+        for proc in procesos_alterados:
+            html_corpo += f"""
+            <div style="margin-bottom: 20px;">
+                <p style="margin-top: 0px; margin-bottom: 5px; font-weight: bold;">◆ Protocolo: {proc['protocolo']}</p>
+                <p style="margin-top: 0px; margin-bottom: 3px; margin-left: 25px;">🔴 Status Antigo: {proc['antigo']}</p>
+                <p style="margin-top: 0px; margin-bottom: 3px; margin-left: 25px;">🟢 Status Novo: {proc['novo']}</p>
+                <p style="margin-top: 0px; margin-bottom: 45px; margin-left: 25px; color: #666666; font-size: 13px;">Verificado em: {agora_str}</p>
+            </div>
+            """
+
+        html_corpo += f"""
+            <p style="margin-top: 20px; margin-bottom: 20px;">
+                A planilha <a href="{LINK_PLANILHA}" style="color: #1a73e8; text-decoration: underline; font-weight: bold;">'monitor_protocolos.xlsx'</a> foi atualizada.
+            </p>
+            <p style="margin-bottom: 0px;">Atenciosamente,</p>
+            <p style="margin-top: 0px;">Robô.</p>
+        </body>
+        </html>
+        """
+
+        msg.attach(MIMEText(html_corpo, 'html'))
+
+        # Conexão com o servidor SMTP do Gmail
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(EMAIL_REMETENTE, SENHA_REMETENTE)
+        server.sendmail(EMAIL_REMETENTE, EMAIL_DESTINATARIOS, msg.as_string())
+        server.quit()
+        
+        print("✉️ E-mail de alerta enviado com o novo layout de sucesso!")
     except Exception as e:
         print(f"❌ Erro ao enviar e-mail: {e}")
 
+
+# ==========================================
+# 🤖 EXECUÇÃO PRINCIPAL DO ROBÔ
+# ==========================================
 def executar_robo():
     print(f"\n===== INICIANDO VERIFICAÇÃO: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')} =====")
     nome_planilha = "monitor_protocolos.xlsx"
@@ -79,13 +147,11 @@ def executar_robo():
         linhas_tabela = driver.find_elements(By.XPATH, "//tbody/tr")
         print(f"✅ {len(linhas_tabela)} processos encontrados na tela.")
         
-        # Mapeamento do conteúdo bruto das linhas
         dados_portal = []
         for linha_tab in linhas_tabela:
             try:
                 celulas = [c.text.strip() for c in linha_tab.find_elements(By.XPATH, "./td") if c.text.strip()]
                 if celulas:
-                    # Guardamos o texto completo da linha e as células para análise posterior
                     dados_portal.append({
                         "texto_completo": " ".join(celulas).upper(),
                         "lista_celulas": celulas
@@ -93,7 +159,7 @@ def executar_robo():
             except Exception:
                 continue
 
-        # 🔄 === Sincronização e Comparação dos dados com a planilha ===
+        # 🔄 === Sincronização e Comparação ===
         houve_alteracao = False
         agora_str = datetime.now().strftime('%d/%m/%Y %H:%M')
         processos_alterados = []
@@ -109,18 +175,14 @@ def executar_robo():
 
                 linha_encontrada = None
                 for dado in dados_portal:
-                    # Se o número do protocolo faz parte do texto dessa linha da tabela, achamos!
                     if protocolo in dado["texto_completo"]:
                         linha_encontrada = dado
                         break
 
                 if linha_encontrada:
-                    # O status no Aprova Digital costuma ser uma das últimas colunas da linha
-                    # Pegamos a penúltima ou última célula que contém o texto do status (ex: "Análise", "Deferido")
                     celulas = linha_encontrada["lista_celulas"]
                     status_novo = celulas[-2] if len(celulas) >= 2 else celulas[-1]
                     
-                    # Se a última célula for um botão de ação vazio, usamos a anterior
                     if status_novo == "" and len(celulas) >= 3:
                         status_novo = celulas[-3]
 
@@ -146,10 +208,8 @@ def executar_robo():
                 df.to_excel(writer, sheet_name=nome_aba, index=False)
             print("🎉 Planilha atualizada com sucesso!")
             
-            msg_email = "O robô identificou alterações de status:\n"
-            for p in processos_alterados:
-                msg_email += f"- Protocolo {p['protocolo']}: mudou de '{p['antigo']}' para '{p['novo']}'\n"
-            enviar_email_notificacao(msg_email)
+            # Aqui chamamos a sua função corrigida passando a lista
+            enviar_email_alerta(processos_alterados)
         else:
             print("☕ Nenhuma alteração encontrada. Tudo atualizado!")
 
