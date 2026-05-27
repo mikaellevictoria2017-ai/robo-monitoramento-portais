@@ -215,7 +215,7 @@ def executar_robo():
                 df.to_excel(writer, sheet_name=nome_aba, index=False)
             print("🎉 Planilha atualizada com sucesso!")
             
-            # CORREÇÃO DO PASSO 2: Ajustado com dois "SS" para conversar com a função
+            # Chamada corrigida com dois "SS"
             enviar_email_alerta(processos_alterados)
         else:
             print("☕ Nenhuma alteração encontrada. Tudo atualizado!")
