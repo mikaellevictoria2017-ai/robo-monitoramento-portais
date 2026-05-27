@@ -13,8 +13,8 @@ SENHA_REMETENTE = os.environ.get("ihfxftkgihyuniob")
 
 # Ajuste com as suas informações reais de e-mail e links:
 EMAIL_REMETENTE = "mikaellevictoria2017@gmail.com" 
-EMAIL_DESTINATARIOS = ["santos.micaelle2006@gmail.com]
-LINK_PLANILHA = "https://artesanourbanismo-my.sharepoint.com/:x:/g/personal/mvitoria_artesanourbanismo_com_br/IQBI7DqiCzMtSIrLcPwTnM2SAamaiye_3EPs-HAEKli1mZo?e=ZJekvn"
+EMAIL_DESTINATARIOS = ["santos.micaelle2006@gmail.com"]
+LINK_PLANILHA = "https://artesanourbanismo-my.sharepoint.com/:x:/g/personal/mvitoria_artesanourbanismo_com_br/IQBI7DqiCzMtSIrLcPwTnM2SAamaiye_3EPs-HAEKli1mZo?e=Zjekvn"
 
 nome_planilha = "monitor_protocolos.xlsx"
 nome_aba = "Santana de Parnaíba"
