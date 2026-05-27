@@ -11,21 +11,21 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 # ==========================================
-# 🌐 CONFIGURAÇÕES GLOBAIS (Passo 2.1)
+# 🌐 CONFIGURAÇÕES GLOBAIS
 # ==========================================
-# Altere para os e-mails corretos da Artesano
-EMAIL_REMETENTE = "mikaellevictoria2017@gmail.com"  
-EMAIL_DESTINATARIOS = ["mikaellevictoria2017@gmail.com"]  
+# Certifique-se de preencher com o e-mail da empresa ou o seu para testar
+EMAIL_REMETENTE = "caroline@artesanourbanismo.com.br"  
+EMAIL_DESTINATARIOS = ["caroline@artesanourbanismo.com.br", "mikaellevictoria2017-ai@gmail.com"]  
 
 # Puxa a senha secreta cadastrada nas Secrets do GitHub
-SENHA_REMETENTE = os.environ.get("ihfxftkgihyuniob")
+SENHA_REMETENTE = os.environ.get("SENHA_GMAIL")
 
 # Link direto para a sua planilha no GitHub
 LINK_PLANILHA = "https://github.com/mikaellevictoria2017-ai/robo-monitoramento-portais/blob/main/monitor_protocolos.xlsx"
 
 
 # ==========================================
-# ✉️ FUNÇÃO DE ENVIO DE E-MAIL (Seu Layout)
+# ✉️ FUNÇÃO DE ENVIO DE E-MAIL (Corrigida)
 # ==========================================
 def enviar_email_alerta(processos_alterados):
     try:
@@ -45,7 +45,8 @@ def enviar_email_alerta(processos_alterados):
 
         agora_str = datetime.now().strftime('%d/%m/%Y %H:%M')
 
-        for proc in procesos_alterados:
+        # Corrigido aqui: agora está estritamente com dois "s" (processos_alterados)
+        for proc in processos_alterados:
             html_corpo += f"""
             <div style="margin-bottom: 20px;">
                 <p style="margin-top: 0px; margin-bottom: 5px; font-weight: bold;">◆ Protocolo: {proc['protocolo']}</p>
@@ -179,8 +180,8 @@ def executar_robo():
                         linha_encontrada = dado
                         break
 
-                if linha_encontrada:
-                    celulas = linha_encontrada["lista_celulas"]
+                if river_encontrada := linha_encontrada:
+                    celulas = river_encontrada["lista_celulas"]
                     status_novo = celulas[-2] if len(celulas) >= 2 else celulas[-1]
                     
                     if status_novo == "" and len(celulas) >= 3:
@@ -206,9 +207,9 @@ def executar_robo():
             print("💾 Salvando alterações na planilha...")
             with pd.ExcelWriter(nome_planilha, engine='openpyxl', mode='w') as writer:
                 df.to_excel(writer, sheet_name=nome_aba, index=False)
-            print("🎉 Planilha atualizada com sucesso!")
+            print("🎉 Planilha updated com sucesso!")
             
-            # Aqui chamamos a sua função corrigida passando a lista
+            # Chamada da função com o nome certinho!
             enviar_email_alerta(processos_alterados)
         else:
             print("☕ Nenhuma alteração encontrada. Tudo atualizado!")
