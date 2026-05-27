@@ -15,35 +15,34 @@ def enviar_email_notificacao(mensagem):
     except Exception as e:
         print(f"❌ Erro ao enviar e-mail: {e}")
 
-def executar_robo():
+def ejecutar_robo():
     print(f"\n===== INICIANDO VERIFICAÇÃO: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')} =====")
     nome_planilha = "monitor_protocolos.xlsx"
-    nome_aba = "Santana de Parnaíba" # 👉 Define a aba alvo
+    nome_aba = "Santana de Parnaíba"
 
     # === PROCESSAMENTO DA PLANILHA ===
     df = None
     linha_correta = 0
     for linha_cabecalho in [0, 1]:
         try:
-            # Lendo especificamente a aba de Santana de Parnaíba
             temp_df = pd.read_excel(nome_planilha, sheet_name=nome_aba, header=linha_cabecalho, dtype=str)
             temp_df.columns = [str(col).strip().upper() for col in temp_df.columns]
             if "PROTOCOLO" in temp_df.columns and "ATIVO" in temp_df.columns:
                 df = temp_df
                 linha_correta = linha_cabecalho
                 break
-        except Exception as e:
+        except Exception:
             continue
 
     if df is None:
-        print(f"❌ Erro crítico: Non encontrei as colunas na aba '{nome_aba}'. Verifique os cabeçalhos!")
+        print(f"❌ Erro crítico: Não encontrei as colunas na aba '{nome_aba}'. Verifique os cabeçalhos!")
         return
 
     df = df.fillna("")
     print(f"📊 Aba '{nome_aba}' carregada com sucesso! Encontradas {len(df)} linhas.")
 
     # 🛡️ === INÍCIO DO BLOQUEADOR DE ERROS ===
-    driver = None  # Deixa o espaço do navegador reservado
+    driver = None
     try:
         print("🔧 Configurando as opções do Chrome para a nuvem...")
         opcoes = webdriver.ChromeOptions()
@@ -89,7 +88,7 @@ def executar_robo():
         
         for idx, col in enumerate(colunas_cabecalho):
             txt = col.text.strip().upper()
-            if "DOCUMENTO" in txt or "REQUERENTE" in txt: indices_portal["DOCUMENTO"] = idx
+            if "DOCUMENTO" in txt: indices_portal["DOCUMENTO"] = idx
             elif "REQUERENTE" in txt or "REMETENTE" in txt: indices_portal["REQUERENTE"] = idx
             elif "PROPRIETÁRIO" in txt or "DESTINATÁRIO" in txt: indices_portal["PROPRIETARIO"] = idx
             elif "CRIADO" in txt: indices_portal["CRIADO"] = idx
@@ -97,31 +96,32 @@ def executar_robo():
             elif "STATUS" in txt: indices_portal["STATUS"] = idx
         
         print("Iniciando varredura em busca dos protocolos (PMSP)...")
-        linhas_tabela = driver.find_elements(By.XPATH, "//tr[contains(., 'PMSP')]")
+        linhas_tabela = driver.find_elements(By.XPATH, "//tbody//tr | //tr[td]")
         print(f"✅ {len(linhas_tabela)} processos encontrados na tela.")
         
         dados_portal = {}
         
-        # Estrutura para ler a tabela se houver dados
+        # 📊 CAPTURA REAL DOS DADOS DA TABELA DO PORTAL
         for linha_tab in linhas_tabela:
             try:
                 celulas = linha_tab.find_elements(By.XPATH, "./td")
                 if len(celulas) > max(indices_portal.values()):
                     doc_txt = celulas[indices_portal["DOCUMENTO"]].text.strip()
-                    req_txt = celulas[indices_portal["REQUERENTE"]].text.strip()
-                    prop_txt = celulas[indices_portal["PROPRIETARIO"]].text.strip()
-                    criado_txt = celulas[indices_portal["CRIADO"]].text.strip()
-                    acao_txt = celulas[indices_portal["ACAO"]].text.strip()
-                    status_txt = celulas[indices_portal["STATUS"]].text.strip()
+                    req_txt = celulas[indices_portal["REQUERENTE"]].text.strip() if indices_portal["REQUERENTE"] != -1 else ""
+                    prop_txt = celulas[indices_portal["PROPRIETARIO"]].text.strip() if indices_portal["PROPRIETARIO"] != -1 else ""
+                    criado_txt = celulas[indices_portal["CRIADO"]].text.strip() if indices_portal["CRIADO"] != -1 else ""
+                    acao_txt = celulas[indices_portal["ACAO"]].text.strip() if indices_portal["ACAO"] != -1 else ""
+                    status_txt = celulas[indices_portal["STATUS"]].text.strip() if indices_portal["STATUS"] != -1 else ""
                     
-                    dados_portal[doc_txt] = {
-                        "doc": doc_txt, "req": req_txt, "prop": prop_txt,
-                        "criado": criado_txt, "acao": acao_txt, "status": status_txt
-                    }
+                    if doc_txt:
+                        dados_portal[doc_txt] = {
+                            "doc": doc_txt, "req": req_txt, "prop": prop_txt,
+                            "criado": criado_txt, "acao": acao_txt, "status": status_txt
+                        }
             except Exception:
                 continue
 
-        # 🔄 === Sincronização dos dados com a planilha ===
+        # 🔄 === Sincronização e Comparação dos dados com a planilha ===
         houve_alteracao = False
         agora_str = datetime.now().strftime('%d/%m/%Y %H:%M')
         processos_alterados = []
@@ -134,6 +134,7 @@ def executar_robo():
         col_status = [c for c in df.columns if "STATUS" in c][0]
         col_modificado = [c for c in df.columns if "MODIFICADO" in c][0] if any("MODIFICADO" in c for c in df.columns) else "MODIFICADO"
 
+        print("🔎 Comparando dados da planilha com o portal...")
         for index, text_linha in df.iterrows():
             if str(text_linha["ATIVO"]).strip().upper() == "SIM":
                 protocolo = str(text_linha["PROTOCOLO"]).strip()
@@ -155,7 +156,7 @@ def executar_robo():
                     status_novo = dados_proc["status"]
 
                     if status_antigo != status_novo:
-                        print(f"⚠️ ALTERAÇÃO DETECTADA! {protocolo} mudou para '{status_novo}'")
+                        print(f"⚠️ ALTERAÇÃO DETECTADA! {protocolo} mudou de '{status_antigo}' para '{status_novo}'")
                         processos_alterados.append({
                             'protocolo': protocolo, 'antigo': status_antigo, 'novo': status_novo
                         })
@@ -163,7 +164,9 @@ def executar_robo():
                         df.at[index, col_modificado] = str(agora_str)
                         houve_alteracao = True
                     else:
-                        print(f"✅ {protocolo}: Status igual ao do portal.")
+                        print(f"✅ {protocolo}: Status igual ao do portal ('{status_antigo}').")
+                else:
+                    print(f"❓ {protocolo}: Não foi localizado na página atual do portal.")
 
         for col in df.columns:
             df[col] = df[col].astype(str).replace('nan', '')
@@ -173,6 +176,14 @@ def executar_robo():
             with pd.ExcelWriter(nome_planilha, engine='openpyxl', mode='w') as writer:
                 df.to_excel(writer, sheet_name=nome_aba, index=False)
             print("🎉 Planilha atualizada com sucesso!")
+            
+            # Dispara a função de e-mail se houver mudanças
+            msg_email = "O robô identificou alterações de status:\n"
+            for p in processos_alterados:
+                msg_email += f"- Protocolo {p['protocolo']}: mudou de '{p['antigo']}' para '{p['novo']}'\n"
+            enviar_email_notificacao(msg_email)
+        else:
+            print("☕ Nenhuma alteração encontrada. Tudo atualizado!")
 
     except Exception as erro:
         mensagem_erro = f"Atenção Micaelle! O robô falhou.\nDetalhe do erro: {erro}"
@@ -183,7 +194,6 @@ def executar_robo():
             driver.quit()
             print("Navegador fechado com segurança pelo sistema de proteção.")
 
-# 🤖 INICIALIZAÇÃO DO SCRIPT NA NUVEM
 if __name__ == "__main__":
     print("🤖 ROBÔ MULTI-ABAS ATIVADO!")
     executar_robo()
