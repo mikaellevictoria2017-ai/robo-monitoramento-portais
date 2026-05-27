@@ -14,8 +14,8 @@ from selenium.webdriver.support import expected_conditions as EC
 # 🌐 CONFIGURAÇÕES GLOBAIS (Ajustadas)
 # ==========================================
 # Definido seu e-mail como remetente e destinatário oficial dos alertas
-EMAIL_REMETENTE = "mikaellevictoria2017-ai@gmail.com"  
-EMAIL_DESTINATARIOS = ["mikaellevictoria2017-ai@gmail.com"]  
+EMAIL_REMETENTE = "mikaellevictoria2017@gmail.com"  
+EMAIL_DESTINATARIOS = ["mikaellevictoria2017@gmail.com"]  
 
 # Puxa a senha secreta (as 16 letras que você vai cadastrar no GitHub Secrets)
 SENHA_REMETENTE = os.environ.get("ihfxftkgihyuniob")
