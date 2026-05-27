@@ -8,10 +8,9 @@ import pandas as pd
 # ==========================================
 # ⚙️ CONFIGURAÇÕES GLOBAIS
 # ==========================================
-# Puxa a senha direto do cofre de segurança do GitHub Secrets
+# Puxa a senha de app de forma segura do GitHub Secrets
 SENHA_REMETENTE = os.environ.get("ihfxftkgihyuniob")
 
-# Ajuste com as suas informações reais de e-mail e links:
 EMAIL_REMETENTE = "mikaellevictoria2017@gmail.com" 
 EMAIL_DESTINATARIOS = ["santos.micaelle2006@gmail.com"]
 LINK_PLANILHA = "https://artesanourbanismo-my.sharepoint.com/:x:/g/personal/mvitoria_artesanourbanismo_com_br/IQBI7DqiCzMtSIrLcPwTnM2SAamaiye_3EPs-HAEKli1mZo?e=Zjekvn"
@@ -101,6 +100,7 @@ def executar_monitoramento(dados_portal):
             protocolo = str(text_linha["PROTOCOLO"]).strip().upper()
             status_antigo = str(text_linha[col_status]).strip()
 
+            # Evita o erro de espaços do portal de Santana de Parnaíba
             protocolo_planilha_limpo = protocolo.replace(" ", "")
 
             linha_encontrada = None
@@ -138,15 +138,17 @@ def executar_monitoramento(dados_portal):
         print("💾 Salvando alterações na planilha...")
         with pd.ExcelWriter(nome_planilha, engine='openpyxl', mode='w') as writer:
             df.to_excel(writer, sheet_name=nome_aba, index=False)
-        print("🎉 Planilha updated com sucesso!")
+        print("🎉 Planilha atualizada com sucesso!")
         
+        # Corrigido com duplo SS para conversar com a função do topo
         enviar_email_alerta(processos_alterados)
     else:
         print("☕ Nenhuma alteração encontrada. Tudo atualizado!")
 
-# Simulador para rodar o script principal (substitua pela chamada real do seu portal se necessário)
+# ==========================================
+# 🚀 PONTO DE PARTIDA DO ROBÔ
+# ==========================================
 if __name__ == "__main__":
-    # Aqui entra a lista de dados capturados do seu portal (exemplo estrutural)
-    # dados_do_portal_capturados = capturar_dados_do_portal() 
-    # executar_monitoramento(dados_do_portal_capturados)
-    pass
+    # Aqui o script é ativado. Se o robô tiver uma função específica para raspar o portal,
+    # os dados capiturados entram aqui como lista para a função abaixo trabalhar:
+    executar_monitoramento(dados_portal=[])
