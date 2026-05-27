@@ -1,198 +1,200 @@
 import os
 import time
+import pandas as pd
 from datetime import datetime
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-import pandas as pd
 from selenium import webdriver
 from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.chrome.options import Options
+from webdriver_manager.chrome import ChromeDriverManager
 
-# ==================== CONFIGURAÇÕES DE ACESSO E LINKS ====================
+# ==========================================
+# CONFIGURAÇÕES INICIAIS E VARIÁVEIS DE AMBIENTE
+# ==========================================
+
+# Ajuste com as suas informações reais de e-mail e links:
 EMAIL_REMETENTE = "mikaellevictoria2017@gmail.com"
-SENHA_REMETENTE = os.environ.get("ihfxftkgihyuniob") # 👈 Puxa com segurança do GitHub Secrets
 EMAIL_DESTINATARIOS = ["santos.micaelle2006@gmail.com"]
-LINK_PLANILHA = "https://artesanourbanismo-my.sharepoint.com/:x:/g/personal/mvitoria_artesanourbanismo_com_br/IQBI7DqiCzMtSIrLcPwTnM2SAamaiye_3EPs-HAEKli1mZo?e=Zjekvn"
+LINK_PLANILHA = "https://artesanourbanismo-my.sharepoint.com/:x:/g/personal/mvitoria_artesanourbanismo_com_br/IQBI7DqicZMtSIrLcPwTnM2SAamaiye_3EPs-HAEKli1mZo?e=Zjekvn"
 
 nome_planilha = "monitor_protocolos.xlsx"
 nome_aba = "Santana de Parnaíba"
-# =========================================================================
 
-def enviar_email_alerta(processos_alterados):
-    try:
-        if not SENHA_REMETENTE:
-            print("⚠️ Alerta do Sistema: A variável 'SENHA_GMAIL' veio vazia da nuvem. O e-mail não pôde ser enviado.")
-            return
+# Puxando as credenciais secretas do GitHub Actions
+USER_PORTAL = os.getenv("USER_PORTAL", "")
+SENHA_PORTAL = os.getenv("SENHA_PORTAL", "")
+SENHA_GMAIL = os.getenv("SENHA_GMAIL", "")
 
-        msg = MIMEMultipart('alternative')
-        msg['From'] = EMAIL_REMETENTE
-        msg['To'] = ", ".join(EMAIL_DESTINATARIOS)
-        msg['Subject'] = f"📢 [Aviso] Mudança de Status em Processos - {datetime.now().strftime('%d/%m/%Y')}"
-        
-        html_corpo = f"""
-        <html>
-        <body style="font-family: Arial, sans-serif; font-size: 14px; color: #333333; line-height: 1.6;">
-            <p style="margin-bottom: 15px;">Olá Artesano,</p>
-            <p style="margin-bottom: 20px;">O robô de monitoramento identificou mudanças de status nos seguintes processos:</p>
-            <p style="margin-bottom: 15px;"><strong>🔹 SANTANA DE PARNAÍBA</strong></p>
-        """
-        
-        agora_str = datetime.now().strftime('%d/%m/%Y %H:%M')
-        
-        for proc in processos_alterados:
-            html_corpo += f"""
-            <div style="margin-bottom: 20px;">
-                <p style="margin: 0px 0px 5px 0px;">🔹 Protocolo: {proc['protocolo']}</p>
-                <p style="margin: 0px 0px 3px 25px;">🔴 Status Antigo: {proc['antigo']}</p>
-                <p style="margin: 0px 0px 3px 25px;">🟢 Status Novo: {proc['novo']}</p>
-                <p style="margin: 0px 0px 0px 45px; color: #666666; font-size: 13px;">Verificado em: {agora_str}</p>
-            </div>
-            """
-            
-        html_corpo += f"""
-            <p style="margin-top: 20px; margin-bottom: 20px;">
-                A planilha <a href="{LINK_PLANILHA}" style="color: #1a73e8; text-decoration: underline; font-weight: bold;">'monitor_protocolos.xlsx'</a> já foi updated automaticamente.
-            </p>
-            <p style="margin-bottom: 0px;">Atenciosamente,</p>
-            <p style="margin-top: 0px;">Robô.</p>
-        </body>
-        </html>
-        """
-        
-        msg.attach(MIMEText(html_corpo, 'html'))
-        
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls()
-        server.login(EMAIL_REMETENTE, str(SENHA_REMETENTE))
-        server.sendmail(EMAIL_REMETENTE, EMAIL_DESTINATARIOS, msg.as_string())
-        server.quit()
-        print("📧 E-mail de alerta enviado com sucesso!")
-    except Exception as e:
-        print(f"❌ Erro ao enviar e-mail: {e}")
+agora = datetime.now()
+agora_str = agora.strftime("%d/%m/%Y %H:%M:%S")
 
-def executar_robo():
-    print(f"\n===== INICIANDO VERIFICAÇÃO: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')} =====")
+print(f"===== INICIANDO VERIFICAÇÃO: {agora_str} =====")
+
+# ==========================================
+# FUNÇÃO PARA ENVIAR E-MAIL DE ALERTA
+# ==========================================
+def enviar_email_alerta(lista_alteracoes):
+    if not lista_alteracoes:
+        return
+        
+    msg = MIMEMultipart()
+    msg['From'] = EMAIL_REMETENTE
+    msg['To'] = ", ".join(EMAIL_DESTINATARIOS)
+    msg['Subject'] = f"⚠️ [Alerta] Alteração de Status de Protocolo - {agora.strftime('%d/%m/%Y')}"
     
-    df = None
+    corpo_html = f"""
+    <html>
+    <body style="font-family: Arial, sans-serif; color: #333;">
+        <h2 style="color: #d9534f;">Atenção! O robô detectou mudanças no portal:</h2>
+        <table border="1" cellpadding="10" cellspacing="0" style="border-collapse: collapse; width: 100%;">
+            <tr style="background-color: #f2f2f2;">
+                <th>Protocolo</th>
+                <th>Status Antigo</th>
+                <th>Status Novo</th>
+            </tr>
+    """
+    for alt in lista_alteracoes:
+        corpo_html += f"""
+            <tr>
+                <td><b>{alt['protocolo']}</b></td>
+                <td style="color: #777;">{alt['antigo']}</td>
+                <td style="color: #2b78e4; font-weight: bold;">{alt['novo']}</td>
+            </tr>
+        """
+    corpo_html += f"""
+        </table>
+        <br>
+        <p>📊 <b>Link da Planilha para consulta:</b> <a href="{LINK_PLANILHA}">Clique aqui para acessar</a></p>
+        <hr style="border: 0; border-top: 1px solid #eee;">
+        <p style="font-size: 11px; color: #999;">Este é um e-mail automático gerado pelo Monitor de Protocolos da Artesano Urbanismo.</p>
+    </body>
+    </html>
+    """
+    
+    msg.attach(MIMEText(corpo_html, 'html'))
+    
+    with smtplib.SMTP('smtp.gmail.com', 557) as server:
+        server.starttls()
+        server.login(EMAIL_REMETENTE, SENHA_GMAIL)
+        server.sendmail(EMAIL_REMETENTE, EMAIL_DESTINATARIOS, msg.as_string())
+
+# ==========================================
+# LEITURA DA PLANILHA LOCAL
+# ==========================================
+if not os.path.exists(nome_planilha):
+    print(f"❌ Erro Crítico: O arquivo '{nome_planilha}' não foi encontrado no repositório.")
+    exit(1)
+
+try:
+    # Localiza a linha correta do cabeçalho de forma inteligente
     linha_correta = 0
-    for linha_cabecalho in [0, 1]:
-        try:
-            temp_df = pd.read_excel(nome_planilha, sheet_name=nome_aba, header=linha_cabecalho, dtype=str)
-            temp_df.columns = [str(col).strip().upper() for col in temp_df.columns]
-            if "PROTOCOLO" in temp_df.columns and "ATIVO" in temp_df.columns:
-                df = temp_df
-                linha_correta = linha_cabecalho
+    with pd.ExcelFile(nome_planilha) as xls:
+        df_teste = pd.read_excel(xls, sheet_name=nome_aba, nrows=10)
+        for i, row in df_teste.iterrows():
+            valores = [str(v).strip().upper() for v in row.values if pd.notna(v)]
+            if "PROTOCOLO" in valores or "STATUS" in valores:
+                linha_correta = i + 1
                 break
-        except Exception as e:
+
+    df = pd.read_excel(nome_planilha, sheet_name=nome_aba, skiprows=linha_correta)
+    df.columns = [str(c).strip().upper() for c in df.columns]
+    print(f"📊 Aba '{nome_aba}' carregada com sucesso! Encontradas {len(df)} linhas.")
+except Exception as e:
+    print(f"❌ Erro ao ler a planilha Excel: {e}")
+    exit(1)
+
+# Validação das colunas obrigatórias
+colunas_necessarias = ["PROTOCOLO", "ATIVO"]
+for col in colunas_necessarias:
+    if col not in df.columns:
+        print(f"❌ Erro: A coluna obrigatória '{col}' não foi encontrada na planilha. Colunas atuais: {list(df.columns)}")
+        exit(1)
+
+col_status = [c for c in df.columns if "STATUS" in c][0] if any("STATUS" in c for c in df.columns) else None
+col_modificado = [c for c in df.columns if "MODIFICADO" in c][0] if any("MODIFICADO" in c for c in df.columns) else "MODIFICADO"
+
+if not col_status:
+    df["STATUS"] = ""
+    col_status = "STATUS"
+if col_modificado not in df.columns:
+    df[col_modificado] = ""
+
+# ==========================================
+# EXTRAÇÃO DE DADOS DO PORTAL (WEB SCRAPING)
+# ==========================================
+dados_portal = {}
+processos_alterados = []
+houve_alteracao = False
+
+chrome_options = Options()
+chrome_options.add_argument("--headless")
+chrome_options.add_argument("--no-sandbox")
+chrome_options.add_argument("--disable-dev-shm-usage")
+chrome_options.add_argument("--window-size=1920,1080")
+
+driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+wait = WebDriverWait(driver, 15)
+
+try:
+    print("🌐 Abrindo a tela de login do portal...")
+    driver.get("https://santanadeparnaiba.aprova.com.br/login")
+    
+    print("🔑 Preenchendo os dados de acesso...")
+    wait.until(EC.presence_of_element_located((By.ID, "email"))).send_keys(USER_PORTAL)
+    driver.find_element(By.ID, "password").send_keys(SENHA_PORTAL)
+    
+    print("🖱️ Clicando no botão Entrar...")
+    driver.find_element(By.XPATH, "//button[@type='submit' or contains(., 'Entrar')]").click()
+    
+    print("🔓 Login efetuado! Aguardando o carregamento da área interna...")
+    time.sleep(5)
+    
+    print("📂 Navegando até a aba de Processos...")
+    driver.get("https://santanadeparnaiba.aprova.com.br/processos")
+    time.sleep(6)
+    
+    print("Iniciando varredura em busca dos protocolos na tabela...")
+    # Coleta todas as linhas da tabela de processos na tela
+    linhas_tabela = driver.find_elements(By.XPATH, "//tbody/tr")
+    print(f"✅ {len(linhas_tabela)} processos encontrados na tela.")
+    
+    for linha in linhas_tabela:
+        try:
+            celulas = linha.find_elements(By.XPATH, "./td")
+            if len(celulas) >= 2:
+                # Procura de forma inteligente em qual célula está o número do protocolo
+                protocolo_texto = ""
+                for c in celulas:
+                    texto_celula = c.text.strip()
+                    if any(char.isdigit() for char in texto_celula) and "-" in texto_celula:
+                        protocolo_texto = texto_celula.split('\n')[0].strip().upper()
+                        break
+                
+                if not protocolo_texto:
+                    protocolo_texto = celulas[1].text.strip().split('\n')[0].strip().upper()
+                
+                # O status do processo geralmente fica nas últimas colunas
+                status_texto = celulas[-2].text.strip() if len(celulas) >= 3 else celulas[-1].text.strip()
+                
+                if protocolo_texto:
+                    dados_portal[protocolo_texto] = {"status": status_texto}
+        except Exception:
             continue
 
-    if df is None:
-        print(f"❌ Erro crítico: Não encontrei as colunas na aba '{nome_aba}'. Verifique os cabeçalhos!")
-        return
-    
-    df = df.fillna("")
-    print(f"📊 Aba '{nome_aba}' carregada com sucesso!")
-    
-    # 🌐 CONFIGURAÇÃO DO CHROME PARA RODAR NO GITHUB ACTIONS (NUVEM)
-    chrome_options = Options()
-    chrome_options.add_argument("--headless=new") # Roda em segundo plano na nuvem
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    
-    driver = webdriver.Chrome(options=chrome_options)
-    driver.maximize_window()
-    wait = WebDriverWait(driver, 25)
-    processos_alterados = []
-    
-    try:
-        # LOGIN NO PORTAL
-        print("Abrindo a tela de login do portal...")
-        driver.get("https://santanadeparnaiba.aprova.com.br/login")
-        
-        print("Preenchendo os dados de acesso...")
-        campo_email = wait.until(EC.presence_of_element_located((By.XPATH, "//input[@type='email' or @name='email' or @id='email']")))
-        # SUBSTITUA AQUI SEU E-MAIL DE ACESSO DO PORTAL SE NECESSÁRIO:
-        campo_email.send_keys("caroline@artesanourbanismo.com.br")
+except Exception as e:
+    print(f"❌ Erro durante a navegação no portal web: {e}")
+finally:
+    driver.quit()
+    print("🔌 Navegador fechado com segurança pelo sistema.")
 
-        campo_senha = driver.find_element(By.XPATH, "//input[@type='password' or @name='password' or @id='password']")
-        # SUBSTITUA AQUI SUA SENHA DE ACESSO DO PORTAL SE NECESSÁRIO:
-        campo_senha.send_keys("Artesan@2026")
-        
-        print("Clicando no botão Entrar...")
-        botao_entrar = driver.find_element(By.XPATH, "//button[@type='submit' or contains(., 'Entrar')]")
-        driver.execute_script("arguments[0].click();", botao_entrar)
-        
-        print("Login efetuado! Aguardando o carregamento...")
-        time.sleep(15) 
-        
-        print("Navegando até a aba 'Processos'...")
-        driver.get("https://santanadeparnaiba.aprova.com.br/processos")
-        time.sleep(15)
-            
-        print("Mapeando colunas do portal...")
-        colunas_cabecalho = driver.find_elements(By.XPATH, "//thead//th | //tr[th or td]//th")
-        
-        indices_portal = {
-            "DOCUMENTO": -1, "REQUERENTE": -1, "PROPRIETARIO": -1, "CRIADO": -1, "ACAO": -1, "STATUS": -1
-        }
-        
-        for idx, col in enumerate(colunas_cabecalho):
-            txt = col.text.strip().upper()
-            if "DOCUMENTO" in txt or "REQUERIMENTO" in txt: indices_portal["DOCUMENTO"] = idx
-            elif "REQUERENTE" in txt or "REMETENTE" in txt: indices_portal["REQUERENTE"] = idx
-            elif "PROPRIETÁRIO" in txt or "DESTINATÁRIO" in txt: indices_portal["PROPRIETARIO"] = idx
-            elif "CRIADO" in txt: indices_portal["CRIADO"] = idx
-            elif "AÇÃO" in txt: indices_portal["ACAO"] = idx
-            elif "STATUS" in txt: indices_portal["STATUS"] = idx
-
-        print("Iniciando varredura em busca dos protocolos (PMSP)...")
-        linhas_tabela = driver.find_elements(By.XPATH, "//tr[contains(., 'PMSP')]")
-        print(f"✅ {len(linhas_tabela)} processos encontrados na tela.")
-        
-        dados_portal = {}
-        
-        for linha in linhas_tabela:
-            try:
-                celulas = linha.find_elements(By.XPATH, "./td")
-                if len(celulas) >= 2:
-                    protocolo_texto = ""
-                    for c in celulas:
-                        if "PMSP" in c.text:
-                            protocolo_texto = c.text.strip().split('\n')[0]
-                            break
-                    
-                    if protocolo_texto:
-                        dados_portal[protocolo_texto] = {
-                            "doc": celulas[indices_portal["DOCUMENTO"]].text.strip() if indices_portal["DOCUMENTO"] != -1 else celulas[1].text.strip(),
-                            "req": celulas[indices_portal["REQUERENTE"]].text.strip() if indices_portal["REQUERENTE"] != -1 else celulas[2].text.strip(),
-                            "prop": celulas[indices_portal["PROPRIETARIO"]].text.strip() if indices_portal["PROPRIETARIO"] != -1 else celulas[3].text.strip(),
-                            "criado": celulas[indices_portal["CRIADO"]].text.strip() if indices_portal["CRIADO"] != -1 else celulas[4].text.strip(),
-                            "acao": celulas[indices_portal["ACAO"]].text.strip() if indices_portal["ACAO"] != -1 else celulas[5].text.strip(),
-                            "status": celulas[indices_portal["STATUS"]].text.strip() if indices_portal["STATUS"] != -1 else celulas[6].text.strip()
-                        }
-                        print(f"🔍 Portal diz -> {protocolo_texto}: {dados_portal[protocolo_texto]['status']}")
-            except:
-                continue
-                    
-        # COMPARAÇÃO E PREENCHIMENTO DE DADOS
-        houve_alteracao = False
-        agora_str = datetime.now().strftime('%d/%m/%Y %H:%M')
-        
-        col_doc = [c for c in df.columns if "REQUERIMENTO" in c or "DOCUMENTO" in c][0]
-        col_req = [c for c in df.columns if "REQUERENTE" in c or "REMETENTE" in c][0]
-        col_prop = [c for c in df.columns if "PROPRIETÁRIO" in c or "DESTINATÁRIO" in c][0]
-        col_criado = [c for c in df.columns if "CRIADO" in c][0]
-        col_acao = [c for c in df.columns if "AÇÃO" in c][0]
-        col_status = [c for c in df.columns if "STATUS" in c][0]
-        col_modificado = [c for c in df.columns if "MODIFICADO" in c][0] if any("MODIFICADO" in c for c in df.columns) else "MODIFICADO EM"
-        
-        # ==========================================
-# SEÇÃO DE COMPARAÇÃO E ATUALIZAÇÃO
 # ==========================================
-
+# SEÇÃO DE COMPARAÇÃO DOS DADOS
+# ==========================================
 print("🔮 Comparando dados da planilha com o portal...")
 for index, text_linha in df.iterrows():
     if str(text_linha["ATIVO"]).strip().upper() != "SIM":
@@ -203,7 +205,7 @@ for index, text_linha in df.iterrows():
 
     linha_encontrada = None
     for dado in dados_portal:
-        if protocolo in dado.upper():
+        if protocolo in dado or dado in protocolo:
             linha_encontrada = dados_portal[dado]
             break
 
@@ -224,57 +226,59 @@ for index, text_linha in df.iterrows():
     else:
         print(f"✅ {protocolo}: Status igual ao do portal ('{status_antigo}').")
 
+# Remove textos nulos antes de salvar
 for col in df.columns:
     df[col] = df[col].astype(str).replace('nan', '')
 
 # ==========================================
-# SALVAMENTO NA PLANILHA COM DESIGN AUTOMÁTICO PROTEGIDO
+# SALVAMENTO NA PLANILHA COM LAYOUT AUTOMÁTICO
 # ==========================================
 salvo_com_sucesso = False
 tentativas = 0
 
-while not salvo_com_sucesso and tentativas < 3:
-    try:
-        with pd.ExcelFile(nome_planilha) as reader:
-            abas_existentes = {sheet: reader.parse(sheet) for sheet in reader.sheet_names}
-        
-        abas_existentes[nome_aba] = df
-        
-        with pd.ExcelWriter(nome_planilha, engine='openpyxl') as writer:
-            for sheet, dados_aba in abas_existentes.items():
-                if sheet == nome_aba:
-                    start_row = linha_correta if 'linha_correta' in locals() else 0
-                    dados_aba.to_excel(writer, sheet_name=sheet, startrow=start_row, index=False)
-                    worksheet = writer.sheets[sheet]
-                    for col in worksheet.columns:
-                        max_len = 0
-                        col_letter = col[0].column_letter
-                        for cell in col:
-                            if cell.value:
-                                max_len = max(max_len, len(str(cell.value)))
-                        worksheet.column_dimensions[col_letter].width = max(max_len + 4, 12)
-                else:
-                    dados_aba.to_excel(writer, sheet_name=sheet, index=False)
-        
-        print(f"💾 Planilha salva. Aba '{nome_aba}' atualizada com layout perfeito!")
-        salvo_com_sucesso = True
-    except PermissionError:
-        print("⚠️ AVISO: Arquivo Excel ocupado, tentando novamente em breve...")
-        time.sleep(5)
-        tentativas += 1
-    except Exception as e:
-        print(f"❌ Erro ao salvar planilha: {e}")
-        break
-
-# Envio do e-mail de alerta
-if houve_alteracao and processos_alterados:
-    if not SENHA_GMAIL:
-        print("⚠️ Alerta do Sistema: A variável 'SENHA_GMAIL' veio vazia da nuvem. O e-mail não pôde ser enviado.")
-    else:
+if houve_alteracao:
+    while not salvo_com_sucesso and tentativas < 3:
         try:
-            enviar_email_alerta(processos_alterados)
-            print("✉️ E-mail de alerta enviado com sucesso!")
+            with pd.ExcelFile(nome_planilha) as reader:
+                abas_existentes = {sheet: reader.parse(sheet) for sheet in reader.sheet_names}
+            
+            abas_existentes[nome_aba] = df
+            
+            with pd.ExcelWriter(nome_planilha, engine='openpyxl') as writer:
+                for sheet, dados_aba in abas_existentes.items():
+                    if sheet == nome_aba:
+                        start_row = linha_correta if 'linha_correta' in locals() else 0
+                        dados_aba.to_excel(writer, sheet_name=sheet, startrow=start_row, index=False)
+                        worksheet = writer.sheets[sheet]
+                        for col in worksheet.columns:
+                            max_len = 0
+                            col_letter = col[0].column_letter
+                            for cell in col:
+                                if cell.value:
+                                    max_len = max(max_len, len(str(cell.value)))
+                            worksheet.column_dimensions[col_letter].width = max(max_len + 4, 12)
+                    else:
+                        dados_aba.to_excel(writer, sheet_name=sheet, index=False)
+            
+            print(f"💾 Planilha salva. Aba '{nome_aba}' atualizada com layout perfeito!")
+            salvo_com_sucesso = True
+        except PermissionError:
+            print("⚠️ AVISO: Arquivo Excel ocupado, tentando novamente em 5 segundos...")
+            time.sleep(5)
+            tentativas += 1
         except Exception as e:
-            print(f"❌ Erro ao enviar e-mail: {e}")
+            print(f"❌ Erro ao salvar planilha: {e}")
+            break
+
+    # Envio do e-mail de alerta
+    if processos_alterados:
+        if not SENHA_GMAIL:
+            print("⚠️ Alerta do Sistema: A variável 'SENHA_GMAIL' veio vazia da nuvem. O e-mail não pôde ser enviado.")
+        else:
+            try:
+                enviar_email_alerta(processos_alterados)
+                print("✉️ E-mail de alerta enviado com sucesso!")
+            except Exception as e:
+                print(f"❌ Erro ao enviar e-mail: {e}")
 else:
-    print("🦥 Nenhuma alteração de status encontrada nos processos ativos.")
+    print("🦥 Nenhuma alteração de status encontrada nos processos ativos. Tudo atualizado!")
