@@ -23,12 +23,16 @@ SENHA_REMETENTE = os.environ.get("ihfxftkgihyuniob")
 # Link direto para a sua planilha no GitHub
 LINK_PLANILHA = "https://github.com/mikaellevictoria2017-ai/robo-monitoramento-portais/blob/main/monitor_protocolos.xlsx"
 
-
 # ==========================================
-# ✉️ FUNÇÃO DE ENVIO DE E-MAIL
+# ✉️ FUNÇÃO DE ENVIO DE E-MAIL (Com validação de segurança)
 # ==========================================
 def enviar_email_alerta(processos_alterados):
     try:
+        # Verifica se a senha foi carregada pela nuvem
+        if not SENHA_REMETENTE:
+            print("⚠️ Alerta do Sistema: A variável 'SENHA_GMAIL' veio vazia da nuvem. O e-mail não pôde ser enviado.")
+            return
+
         msg = MIMEMultipart('alternative')
         msg['From'] = EMAIL_REMETENTE
         msg['To'] = ", ".join(EMAIL_DESTINATARIOS)
@@ -68,7 +72,7 @@ def enviar_email_alerta(processos_alterados):
 
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()
-        server.login(EMAIL_REMETENTE, SENHA_REMETENTE)
+        server.login(EMAIL_REMETENTE, str(SENHA_REMETENTE))
         server.sendmail(EMAIL_REMETENTE, EMAIL_DESTINATARIOS, msg.as_string())
         server.quit()
         
