@@ -11,13 +11,14 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 # ==========================================
-# 🌐 CONFIGURAÇÕES GLOBAIS
+# 🌐 CONFIGURAÇÕES GLOBAIS (Ajustadas)
 # ==========================================
-EMAIL_REMETENTE = "caroline@artesanourbanismo.com.br"  
-EMAIL_DESTINATARIOS = ["caroline@artesanourbanismo.com.br", "mikaellevictoria2017-ai@gmail.com"]  
+# Definido seu e-mail como remetente e destinatário oficial dos alertas
+EMAIL_REMETENTE = "mikaellevictoria2017-ai@gmail.com"  
+EMAIL_DESTINATARIOS = ["mikaellevictoria2017-ai@gmail.com"]  
 
-# Puxa a senha secreta cadastrada nas Secrets do GitHub
-SENHA_REMETENTE = os.environ.get("SENHA_GMAIL")
+# Puxa a senha secreta (as 16 letras que você vai cadastrar no GitHub Secrets)
+SENHA_REMETENTE = os.environ.get("ihfxftkgihyuniob")
 
 # Link direto para a sua planilha no GitHub
 LINK_PLANILHA = "https://github.com/mikaellevictoria2017-ai/robo-monitoramento-portais/blob/main/monitor_protocolos.xlsx"
@@ -36,7 +37,7 @@ def enviar_email_alerta(processos_alterados):
         html_corpo = f"""
         <html>
         <body style="font-family: Arial, sans-serif; font-size: 14px; color: #333333; line-height: 1.6;">
-            <p style="margin-bottom: 15px;">Olá Artesano,</p>
+            <p style="margin-bottom: 15px;">Olá,</p>
             <p style="margin-bottom: 20px;">O robô de monitoramento identificou mudanças de status nos seguintes processos:</p>
             <p style="margin-bottom: 15px;"><strong>◆ SANTANA DE PARNAÍBA</strong></p>
         """
@@ -71,7 +72,7 @@ def enviar_email_alerta(processos_alterados):
         server.sendmail(EMAIL_REMETENTE, EMAIL_DESTINATARIOS, msg.as_string())
         server.quit()
         
-        print("✉️ E-mail de alerta enviado com o novo layout de sucesso!")
+        print("✉️ E-mail de alerta enviado com sucesso!")
     except Exception as e:
         print(f"❌ Erro ao enviar e-mail: {e}")
 
@@ -120,8 +121,9 @@ def executar_robo():
         print("Abrindo a tela de login do portal...")
         driver.get("https://santanadeparnaiba.aprova.com.br/login")
         
-        print("Preenchendo os dados de acesso...")
+        print("Preenchendo os dados de acesso para consulta...")
         campo_email = wait.until(EC.presence_of_element_located((By.XPATH, "//input[@type='email' or @name='email' or @id='email']")))
+        # E-mail mantido unicamente para a autenticação interna do robô na página
         campo_email.send_keys("caroline@artesanourbanismo.com.br")
         
         campo_senha = driver.find_element(By.XPATH, "//input[@type='password' or @name='password' or @id='password']")
@@ -174,7 +176,6 @@ def executar_robo():
                         linha_encontrada = dado
                         break
 
-                # CORRIGIDO: Removido o termo incorreto 'river_encontrada'
                 if linha_encontrada:
                     celulas = linha_encontrada["lista_celulas"]
                     status_novo = celulas[-2] if len(celulas) >= 2 else celulas[-1]
