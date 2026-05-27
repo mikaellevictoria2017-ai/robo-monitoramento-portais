@@ -168,15 +168,21 @@ def executar_robo():
         col_status = [c for c in df.columns if "STATUS" in c][0]
         col_modificado = [c for c in df.columns if "MODIFICADO" in c][0] if any("MODIFICADO" in c for c in df.columns) else "MODIFICADO"
 
-        print("🔎 Comparando dados da planilha com o portal...")
+     print("🔎 Comparando dados da planilha com o portal...")
         for index, text_linha in df.iterrows():
             if str(text_linha["ATIVO"]).strip().upper() == "SIM":
                 protocolo = str(text_linha["PROTOCOLO"]).strip().upper()
                 status_antigo = str(text_linha[col_status]).strip()
 
+                # PASSO 3: Limpa os espaços do protocolo da planilha para comparar com segurança
+                protocolo_planilha_limpo = protocolo.replace(" ", "")
+
                 linha_encontrada = None
                 for dado in dados_portal:
-                    if protocolo in dado["texto_completo"]:
+                    # Limpa os espaços do texto capturado no portal
+                    texto_portal_limpo = dado["texto_completo"].replace(" ", "")
+                    
+                    if protocolo_planilha_limpo in texto_portal_limpo:
                         linha_encontrada = dado
                         break
 
@@ -209,19 +215,7 @@ def executar_robo():
                 df.to_excel(writer, sheet_name=nome_aba, index=False)
             print("🎉 Planilha atualizada com sucesso!")
             
+            # CORREÇÃO DO PASSO 2: Ajustado com dois "SS" para conversar com a função
             enviar_email_alerta(processos_alterados)
         else:
             print("☕ Nenhuma alteração encontrada. Tudo atualizado!")
-
-    except Exception as erro:
-        print(f"🚨 Atenção! O robô falhou. Detalhe do erro: {erro}")
-
-    finally:
-        if driver is not None:
-            driver.quit()
-            print("Navegador fechado com segurança pelo sistema de proteção.")
-
-if __name__ == "__main__":
-    print("🤖 ROBÔ MULTI-ABAS ATIVADO!")
-    executar_robo()
-    print("✅ Execução concluída!")
