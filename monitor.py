@@ -88,15 +88,16 @@ def executar_robo():
         
         for idx, col in enumerate(colunas_cabecalho):
             txt = col.text.strip().upper()
-            if "DOCUMENTO" in txt: indices_portal["DOCUMENTO"] = idx
-            elif "REQUERENTE" in txt or "REMETENTE" in txt: indices_portal["REQUERENTE"] = idx
+            if "DOCUMENTO" in txt or "NUMERAÇÃO" in txt or "NÚMERO" in txt: indices_portal["DOCUMENTO"] = idx
+            elif "REQUERENTE" in txt or "REMETENTE" in txt or "REQUERIMENTO" in txt: indices_portal["REQUERENTE"] = idx
             elif "PROPRIETÁRIO" in txt or "DESTINATÁRIO" in txt: indices_portal["PROPRIETARIO"] = idx
             elif "CRIADO" in txt: indices_portal["CRIADO"] = idx
             elif "AÇÃO" in txt: indices_portal["ACAO"] = idx
             elif "STATUS" in txt: indices_portal["STATUS"] = idx
         
-        print("Iniciando varredura em busca dos protocolos (PMSP)...")
-        linhas_tabela = driver.find_elements(By.XPATH, "//tbody//tr | //tr[td]")
+        print("Iniciando varredura em busca de todas as linhas da tabela...")
+        # Mudança principal aqui: pegamos todas as linhas geradas dentro do tbody
+        linhas_tabela = driver.find_elements(By.XPATH, "//tbody/tr")
         print(f"✅ {len(linhas_tabela)} processos encontrados na tela.")
         
         dados_portal = {}
@@ -105,20 +106,26 @@ def executar_robo():
         for linha_tab in linhas_tabela:
             try:
                 celulas = linha_tab.find_elements(By.XPATH, "./td")
-                if len(celulas) > max(indices_portal.values()):
-                    doc_txt = celulas[indices_portal["DOCUMENTO"]].text.strip()
-                    req_txt = celulas[indices_portal["REQUERENTE"]].text.strip() if indices_portal["REQUERENTE"] != -1 else ""
-                    prop_txt = celulas[indices_portal["PROPRIETARIO"]].text.strip() if indices_portal["PROPRIETARIO"] != -1 else ""
-                    criado_txt = celulas[indices_portal["CRIADO"]].text.strip() if indices_portal["CRIADO"] != -1 else ""
-                    acao_txt = celulas[indices_portal["ACAO"]].text.strip() if indices_portal["ACAO"] != -1 else ""
-                    status_txt = celulas[indices_portal["STATUS"]].text.strip() if indices_portal["STATUS"] != -1 else ""
+                if len(celulas) > 0:
+                    # Se o índice do documento falhou (-1), tentamos por padrão a primeira célula (0)
+                    idx_doc = indices_portal["DOCUMENTO"] if indices_portal["DOCUMENTO"] != -1 else 0
+                    doc_txt = celulas[idx_doc].text.strip()
+                    
+                    req_txt = celulas[indices_portal["REQUERENTE"]].text.strip() if indices_portal["REQUERENTE"] != -1 and len(celulas) > indices_portal["REQUERENTE"] else ""
+                    prop_txt = celulas[indices_portal["PROPRIETARIO"]].text.strip() if indices_portal["PROPRIETARIO"] != -1 and len(celulas) > indices_portal["PROPRIETARIO"] else ""
+                    criado_txt = celulas[indices_portal["CRIADO"]].text.strip() if indices_portal["CRIADO"] != -1 and len(celulas) > indices_portal["CRIADO"] else ""
+                    acao_txt = celulas[indices_portal["ACAO"]].text.strip() if indices_portal["ACAO"] != -1 and len(celulas) > indices_portal["ACAO"] else ""
+                    
+                    # Procura o status: costuma ser uma das últimas colunas se o índice falhar
+                    idx_status = indices_portal["STATUS"] if indices_portal["STATUS"] != -1 else (len(celulas) - 2 if len(celulas) > 2 else 0)
+                    status_txt = celulas[idx_status].text.strip()
                     
                     if doc_txt:
-                        dados_portal[doc_txt] = {
+                        dados_portal[doc_txt.upper()] = {
                             "doc": doc_txt, "req": req_txt, "prop": prop_txt,
                             "criado": criado_txt, "acao": acao_txt, "status": status_txt
                         }
-            except Exception:
+            except Exception as e:
                 continue
 
         # 🔄 === Sincronização e Comparação dos dados com a planilha ===
@@ -137,7 +144,7 @@ def executar_robo():
         print("🔎 Comparando dados da planilha com o portal...")
         for index, text_linha in df.iterrows():
             if str(text_linha["ATIVO"]).strip().upper() == "SIM":
-                protocolo = str(text_linha["PROTOCOLO"]).strip()
+                protocolo = str(text_linha["PROTOCOLO"]).strip().upper()
                 status_antigo = str(text_linha[col_status]).strip()
 
                 dados_proc = None
@@ -175,9 +182,8 @@ def executar_robo():
             print("💾 Salvando alterações na planilha...")
             with pd.ExcelWriter(nome_planilha, engine='openpyxl', mode='w') as writer:
                 df.to_excel(writer, sheet_name=nome_aba, index=False)
-            print("🎉 Planilha atualizada com sucesso!")
+            print("🎉 Planilha updated com sucesso!")
             
-            # Dispara a função de e-mail se houver mudanças
             msg_email = "O robô identificou alterações de status:\n"
             for p in processos_alterados:
                 msg_email += f"- Protocolo {p['protocolo']}: mudou de '{p['antigo']}' para '{p['novo']}'\n"
