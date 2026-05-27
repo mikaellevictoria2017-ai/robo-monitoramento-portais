@@ -109,44 +109,7 @@ def executar_robo():
         driver = webdriver.Chrome(options=opcoes)
         print("✅ Navegador aberto com sucesso na nuvem!")
 
-        # ====================================================================
-
-        for index, linha in df.iterrows():
-            # 💡 IMPORTANTE: Repare como todas as linhas abaixo ganharam espaços!
-            protocolo = linha['PROTOCOLO']
-            print(f"🔎 Verificando processo: {protocolo}")
-            
-            # O seu código do Selenium que entra no portal entra aqui...
-            # driver.get("...")
-
-
-    except Exception as erro:
-        # 🚨 Se o site cair ou travar, ele executa isso e não quebra a máquina:
-        mensagem_erro = f"Atenção Micaelle! O robô falhou.\nDetalhe do erro: {erro}"
-        print(f"🚨 {mensagem_erro}")
-
-    finally:
-        # 🔒 Segurança Máxima: Sempre fecha o Chrome no final, dando certo ou errado
-        if driver is not None:
-            driver.quit()
-            print("Navegador fechado com segurança pelo sistema de proteção.")
-    
-    # 🛡️ === INÍCIO DO BLOQUEADOR DE ERROS ===
-    driver = None  # Deixa o espaço do navegador reservado
-    try:
-        print("🔧 Configurando as opções do Chrome para a nuvem...")
-        opcoes = webdriver.ChromeOptions()
-        opcoes.add_argument("--headless=new")
-        opcoes.add_argument("--no-sandbox")
-        opcoes.add_argument("--disable-dev-shm-usage")
-        opcoes.add_argument("--disable-gpu")
-        opcoes.add_argument("--window-size=1920,1080")
-        
-        print("🌐 Tentando abrir o navegador Chrome...")
-        driver = webdriver.Chrome(options=opcoes)
-        print("✅ Navegador aberto com sucesso na nuvem!")
-
-        # #️⃣ LOGIN NO PORTAL (Feito uma vez antes de olhar os protocolos)
+        # #️⃣ LOGIN NO PORTAL
         print("Abrindo a tela de login do portal...")
         driver.get("https://santanadeparnaiba.aprova.com.br/login")
         
@@ -189,7 +152,7 @@ def executar_robo():
         print(f"✅ {len(linhas_tabela)} processos encontrados na tela.")
         
         dados_portal = {}
-        # (Aqui o seu robô preenche o dicionário dados_portal com as linhas lidas do site)
+        # (Aqui o robô coleta os dados da tabela do site)
 
         # 🔄 === Sincronização dos dados com a planilha ===
         houve_alteracao = False
@@ -238,10 +201,8 @@ def executar_robo():
         for col in df.columns:
             df[col] = df[col].astype(str).replace('nan', '')
 
-        # (Código para salvar a planilha de volta e enviar e-mail se houve_alteracao == True entra aqui)
-
     except Exception as erro:
-        mensagem_erro = f"Atenção Micaelle! O robô falhou.\nDetalhe do erro: {erro}"
+        mensagem_erro = f"Atenção! O robô falhou.\nDetalhe do erro: {erro}"
         print(f"🚨 {mensagem_erro}")
 
     finally:
