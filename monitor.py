@@ -246,7 +246,6 @@ while not salvo_com_sucesso and tentativas < 3:
         with pd.ExcelWriter(nome_planilha, engine='openpyxl') as writer:
             for sheet, dados_aba in abas_existentes.items():
                 if sheet == nome_aba:
-                    # Garante que 'linha_correta' exista ou usa 0 por padrão
                     start_row = linha_correta if 'linha_correta' in locals() else 0
                     dados_aba.to_excel(writer, sheet_name=sheet, startrow=start_row, index=False)
                     worksheet = writer.sheets[sheet]
