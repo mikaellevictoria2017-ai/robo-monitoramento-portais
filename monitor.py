@@ -1,26 +1,26 @@
 import os
-import smtplib
+import time
 from datetime import datetime
-from email.mime.multipart import MIMEMultipart
+import smtplib
 from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 import pandas as pd
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.chrome.options import Options
 
-# ==========================================
-# ⚙️ CONFIGURAÇÕES GLOBAIS
-# ==========================================
-# Puxa a senha de app de forma segura do GitHub Secrets
-SENHA_REMETENTE = os.environ.get("ihfxftkgihyuniob")
-
-EMAIL_REMETENTE = "mikaellevictoria2017@gmail.com" 
+# ==================== CONFIGURAÇÕES DE ACESSO E LINKS ====================
+EMAIL_REMETENTE = "mikaellevictoria2017@gmail.com"
+SENHA_REMETENTE = os.environ.get("Artesan@2026") # 👈 Puxa com segurança do GitHub Secrets
 EMAIL_DESTINATARIOS = ["santos.micaelle2006@gmail.com"]
 LINK_PLANILHA = "https://artesanourbanismo-my.sharepoint.com/:x:/g/personal/mvitoria_artesanourbanismo_com_br/IQBI7DqiCzMtSIrLcPwTnM2SAamaiye_3EPs-HAEKli1mZo?e=Zjekvn"
 
 nome_planilha = "monitor_protocolos.xlsx"
 nome_aba = "Santana de Parnaíba"
+# =========================================================================
 
-# ==========================================
-# ✉️ FUNÇÃO DE ENVIO DE E-MAIL
-# ==========================================
 def enviar_email_alerta(processos_alterados):
     try:
         if not SENHA_REMETENTE:
@@ -31,124 +31,248 @@ def enviar_email_alerta(processos_alterados):
         msg['From'] = EMAIL_REMETENTE
         msg['To'] = ", ".join(EMAIL_DESTINATARIOS)
         msg['Subject'] = f"📢 [Aviso] Mudança de Status em Processos - {datetime.now().strftime('%d/%m/%Y')}"
-
+        
         html_corpo = f"""
         <html>
         <body style="font-family: Arial, sans-serif; font-size: 14px; color: #333333; line-height: 1.6;">
-            <p style="margin-bottom: 15px;">Olá,</p>
+            <p style="margin-bottom: 15px;">Olá Artesano,</p>
             <p style="margin-bottom: 20px;">O robô de monitoramento identificou mudanças de status nos seguintes processos:</p>
-            <p style="margin-bottom: 15px;"><strong>◆ SANTANA DE PARNAÍBA</strong></p>
+            <p style="margin-bottom: 15px;"><strong>🔹 SANTANA DE PARNAÍBA</strong></p>
         """
-
+        
         agora_str = datetime.now().strftime('%d/%m/%Y %H:%M')
-
+        
         for proc in processos_alterados:
             html_corpo += f"""
             <div style="margin-bottom: 20px;">
-                <p style="margin-top: 0px; margin-bottom: 5px; font-weight: bold;">◆ Protocolo: {proc['protocolo']}</p>
-                <p style="margin-top: 0px; margin-bottom: 3px; margin-left: 25px;">🔴 Status Antigo: {proc['antigo']}</p>
-                <p style="margin-top: 0px; margin-bottom: 3px; margin-left: 25px;">🟢 Status Novo: {proc['novo']}</p>
-                <p style="margin-top: 0px; margin-bottom: 45px; margin-left: 25px; color: #666666; font-size: 13px;">Verificado em: {agora_str}</p>
+                <p style="margin: 0px 0px 5px 0px;">🔹 Protocolo: {proc['protocolo']}</p>
+                <p style="margin: 0px 0px 3px 25px;">🔴 Status Antigo: {proc['antigo']}</p>
+                <p style="margin: 0px 0px 3px 25px;">🟢 Status Novo: {proc['novo']}</p>
+                <p style="margin: 0px 0px 0px 45px; color: #666666; font-size: 13px;">Verificado em: {agora_str}</p>
             </div>
             """
-
+            
         html_corpo += f"""
             <p style="margin-top: 20px; margin-bottom: 20px;">
-                A planilha <a href="{LINK_PLANILHA}" style="color: #1a73e8; text-decoration: underline; font-weight: bold;">'monitor_protocolos.xlsx'</a> foi atualizada.
+                A planilha <a href="{LINK_PLANILHA}" style="color: #1a73e8; text-decoration: underline; font-weight: bold;">'monitor_protocolos.xlsx'</a> já foi updated automaticamente.
             </p>
             <p style="margin-bottom: 0px;">Atenciosamente,</p>
             <p style="margin-top: 0px;">Robô.</p>
         </body>
         </html>
         """
-
+        
         msg.attach(MIMEText(html_corpo, 'html'))
-
+        
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()
         server.login(EMAIL_REMETENTE, str(SENHA_REMETENTE))
         server.sendmail(EMAIL_REMETENTE, EMAIL_DESTINATARIOS, msg.as_string())
         server.quit()
-        
-        print("✉️ E-mail de alerta enviado com sucesso!")
+        print("📧 E-mail de alerta enviado com sucesso!")
     except Exception as e:
         print(f"❌ Erro ao enviar e-mail: {e}")
 
-# ==========================================
-# 🤖 EXECUÇÃO DO MONITORAMENTO
-# ==========================================
-def executar_monitoramento(dados_portal):
-    agora_str = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-    print(f"\n===== INICIANDO VERIFICAÇÃO: {agora_str} =====")
+def executar_robo():
+    print(f"\n===== INICIANDO VERIFICAÇÃO: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')} =====")
+    
+    df = None
+    linha_correta = 0
+    for linha_cabecalho in [0, 1]:
+        try:
+            temp_df = pd.read_excel(nome_planilha, sheet_name=nome_aba, header=linha_cabecalho, dtype=str)
+            temp_df.columns = [str(col).strip().upper() for col in temp_df.columns]
+            if "PROTOCOLO" in temp_df.columns and "ATIVO" in temp_df.columns:
+                df = temp_df
+                linha_correta = linha_cabecalho
+                break
+        except Exception as e:
+            continue
 
-    try:
-        df = pd.read_excel(nome_planilha, sheet_name=nome_aba)
-        print(f"📊 Aba '{nome_aba}' carregada com sucesso! Encontradas {len(df)} linhas.")
-    except Exception as e:
-        print(f"❌ Erro ao ler a planilha: {e}")
+    if df is None:
+        print(f"❌ Erro crítico: Não encontrei as colunas na aba '{nome_aba}'. Verifique os cabeçalhos!")
         return
-
+    
+    df = df.fillna("")
+    print(f"📊 Aba '{nome_aba}' carregada com sucesso!")
+    
+    # 🌐 CONFIGURAÇÃO DO CHROME PARA RODAR NO GITHUB ACTIONS (NUVEM)
+    chrome_options = Options()
+    chrome_options.add_argument("--headless=new") # Roda em segundo plano na nuvem
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    
+    driver = webdriver.Chrome(options=chrome_options)
+    driver.maximize_window()
+    wait = WebDriverWait(driver, 25)
     processos_alterados = []
-    houve_alteracao = False
-
-    col_status = [c for c in df.columns if "STATUS" in c][0]
-    col_modificado = [c for c in df.columns if "MODIFICADO" in c][0] if any("MODIFICADO" in c for c in df.columns) else "MODIFICADO"
-
-    print("🔎 Comparando dados da planilha com o portal...")
-    for index, text_linha in df.iterrows():
-        if str(text_linha["ATIVO"]).strip().upper() == "SIM":
-            protocolo = str(text_linha["PROTOCOLO"]).strip().upper()
-            status_antigo = str(text_linha[col_status]).strip()
-
-            # Evita o erro de espaços do portal de Santana de Parnaíba
-            protocolo_planilha_limpo = protocolo.replace(" ", "")
-
-            linha_encontrada = None
-            for dado in dados_portal:
-                texto_portal_limpo = dado["texto_completo"].replace(" ", "")
-                
-                if protocolo_planilha_limpo in texto_portal_limpo:
-                    linha_encontrada = dado
-                    break
-
-            if linha_encontrada:
-                celulas = linha_encontrada["lista_celulas"]
-                status_novo = celulas[-2] if len(celulas) >= 2 else celulas[-1]
-                
-                if status_novo == "" and len(celulas) >= 3:
-                    status_novo = celulas[-3]
-
-                if status_antigo != status_novo:
-                    print(f"⚠️ ALTERAÇÃO DETECTADA! {protocolo} mudou de '{status_antigo}' para '{status_novo}'")
-                    processos_alterados.append({
-                        'protocolo': protocolo, 'antigo': status_antigo, 'novo': status_novo
-                    })
-                    df.at[index, col_status] = str(status_novo)
-                    df.at[index, col_modificado] = str(agora_str)
-                    houve_alteracao = True
-                else:
-                    print(f"✅ {protocolo}: Status igual ao do portal ('{status_antigo}').")
-            else:
-                print(f"❓ {protocolo}: Não foi localizado na página atual do portal.")
-
-    for col in df.columns:
-        df[col] = df[col].astype(str).replace('nan', '')
-
-    if houve_alteracao:
-        print("💾 Salvando alterações na planilha...")
-        with pd.ExcelWriter(nome_planilha, engine='openpyxl', mode='w') as writer:
-            df.to_excel(writer, sheet_name=nome_aba, index=False)
-        print("🎉 Planilha atualizada com sucesso!")
+    
+    try:
+        # LOGIN NO PORTAL
+        print("Abrindo a tela de login do portal...")
+        driver.get("https://santanadeparnaiba.aprova.com.br/login")
         
-        # Corrigido com duplo SS para conversar com a função do topo
-        enviar_email_alerta(processos_alterados)
-    else:
-        print("☕ Nenhuma alteração encontrada. Tudo atualizado!")
+        print("Preenchendo os dados de acesso...")
+        campo_email = wait.until(EC.presence_of_element_located((By.XPATH, "//input[@type='email' or @name='email' or @id='email']")))
+        # SUBSTITUA AQUI SEU E-MAIL DE ACESSO DO PORTAL SE NECESSÁRIO:
+        campo_email.send_keys("mvitoria@artesanourbanismo.com.br")
 
-# ==========================================
-# 🚀 PONTO DE PARTIDA DO ROBÔ
-# ==========================================
+        campo_senha = driver.find_element(By.XPATH, "//input[@type='password' or @name='password' or @id='password']")
+        # SUBSTITUA AQUI SUA SENHA DE ACESSO DO PORTAL SE NECESSÁRIO:
+        campo_senha.send_keys("SUA_SENHA_DO_PORTAL_AQUI")
+        
+        print("Clicando no botão Entrar...")
+        botao_entrar = driver.find_element(By.XPATH, "//button[@type='submit' or contains(., 'Entrar')]")
+        driver.execute_script("arguments[0].click();", botao_entrar)
+        
+        print("Login efetuado! Aguardando o carregamento...")
+        time.sleep(15) 
+        
+        print("Navegando até a aba 'Processos'...")
+        driver.get("https://santanadeparnaiba.aprova.com.br/processos")
+        time.sleep(15)
+            
+        print("Mapeando colunas do portal...")
+        colunas_cabecalho = driver.find_elements(By.XPATH, "//thead//th | //tr[th or td]//th")
+        
+        indices_portal = {
+            "DOCUMENTO": -1, "REQUERENTE": -1, "PROPRIETARIO": -1, "CRIADO": -1, "ACAO": -1, "STATUS": -1
+        }
+        
+        for idx, col in enumerate(colunas_cabecalho):
+            txt = col.text.strip().upper()
+            if "DOCUMENTO" in txt or "REQUERIMENTO" in txt: indices_portal["DOCUMENTO"] = idx
+            elif "REQUERENTE" in txt or "REMETENTE" in txt: indices_portal["REQUERENTE"] = idx
+            elif "PROPRIETÁRIO" in txt or "DESTINATÁRIO" in txt: indices_portal["PROPRIETARIO"] = idx
+            elif "CRIADO" in txt: indices_portal["CRIADO"] = idx
+            elif "AÇÃO" in txt: indices_portal["ACAO"] = idx
+            elif "STATUS" in txt: indices_portal["STATUS"] = idx
+
+        print("Iniciando varredura em busca dos protocolos (PMSP)...")
+        linhas_tabela = driver.find_elements(By.XPATH, "//tr[contains(., 'PMSP')]")
+        print(f"✅ {len(linhas_tabela)} processos encontrados na tela.")
+        
+        dados_portal = {}
+        
+        for linha in linhas_tabela:
+            try:
+                celulas = linha.find_elements(By.XPATH, "./td")
+                if len(celulas) >= 2:
+                    protocolo_texto = ""
+                    for c in celulas:
+                        if "PMSP" in c.text:
+                            protocolo_texto = c.text.strip().split('\n')[0]
+                            break
+                    
+                    if protocolo_texto:
+                        dados_portal[protocolo_texto] = {
+                            "doc": celulas[indices_portal["DOCUMENTO"]].text.strip() if indices_portal["DOCUMENTO"] != -1 else celulas[1].text.strip(),
+                            "req": celulas[indices_portal["REQUERENTE"]].text.strip() if indices_portal["REQUERENTE"] != -1 else celulas[2].text.strip(),
+                            "prop": celulas[indices_portal["PROPRIETARIO"]].text.strip() if indices_portal["PROPRIETARIO"] != -1 else celulas[3].text.strip(),
+                            "criado": celulas[indices_portal["CRIADO"]].text.strip() if indices_portal["CRIADO"] != -1 else celulas[4].text.strip(),
+                            "acao": celulas[indices_portal["ACAO"]].text.strip() if indices_portal["ACAO"] != -1 else celulas[5].text.strip(),
+                            "status": celulas[indices_portal["STATUS"]].text.strip() if indices_portal["STATUS"] != -1 else celulas[6].text.strip()
+                        }
+                        print(f"🔍 Portal diz -> {protocolo_texto}: {dados_portal[protocolo_texto]['status']}")
+            except:
+                continue
+                    
+        # COMPARAÇÃO E PREENCHIMENTO DE DADOS
+        houve_alteracao = False
+        agora_str = datetime.now().strftime('%d/%m/%Y %H:%M')
+        
+        col_doc = [c for c in df.columns if "REQUERIMENTO" in c or "DOCUMENTO" in c][0]
+        col_req = [c for c in df.columns if "REQUERENTE" in c or "REMETENTE" in c][0]
+        col_prop = [c for c in df.columns if "PROPRIETÁRIO" in c or "DESTINATÁRIO" in c][0]
+        col_criado = [c for c in df.columns if "CRIADO" in c][0]
+        col_acao = [c for c in df.columns if "AÇÃO" in c][0]
+        col_status = [c for c in df.columns if "STATUS" in c][0]
+        col_modificado = [c for c in df.columns if "MODIFICADO" in c][0] if any("MODIFICADO" in c for c in df.columns) else "MODIFICADO EM"
+        
+        print("🔎 Comparando dados da planilha com o portal...")
+        for index, text_linha in df.iterrows():
+            if str(text_linha["ATIVO"]).strip().upper() == "SIM":
+                protocolo = str(text_linha["PROTOCOLO"]).strip()
+                status_antigo = str(text_linha[col_status]).strip()
+                
+                # Remove espaços invisíveis para comparação precisa
+                protocolo_planilha_limpo = protocolo.replace(" ", "").upper()
+                
+                dados_proc = None
+                for k in dados_portal.keys():
+                    protocolo_portal_limpo = k.replace(" ", "").upper()
+                    if protocolo_planilha_limpo in protocolo_portal_limpo or protocolo_portal_limpo in protocolo_planilha_limpo:
+                        dados_proc = dados_portal[k]
+                        break
+                
+                if dados_proc:
+                    df.at[index, col_doc] = str(dados_proc["doc"])
+                    df.at[index, col_req] = str(dados_proc["req"])
+                    df.at[index, col_prop] = str(dados_proc["prop"])
+                    df.at[index, col_criado] = str(dados_proc["criado"])
+                    df.at[index, col_acao] = str(dados_proc["acao"])
+                    
+                    status_novo = dados_proc["status"]
+                    
+                    if status_antigo != status_novo:
+                        print(f"🚨 ALTERAÇÃO DETECTADA! {protocolo} mudou de '{status_antigo}' para '{status_novo}'")
+                        processos_alterados.append({
+                            'protocolo': protocolo, 'antigo': status_antigo, 'novo': status_novo
+                        })
+                        df.at[index, col_status] = str(status_novo)
+                        df.at[index, col_modificado] = str(agora_str)
+                        houve_alteracao = True
+                    else:
+                        print(f"✅ {protocolo}: Status igual ao do portal ('{status_antigo}').")
+                else:
+                    print(f"❓ {protocolo}: Não foi localizado na página atual do portal.")
+                        
+        for col in df.columns:
+            df[col] = df[col].astype(str).replace('nan', '')
+            
+        # SALVAMENTO NA PLANILHA COM DESIGN AUTOMÁTICO PROTEGIDO
+        salvo_com_sucesso = False
+        tentativas = 0
+        while not salvo_com_sucesso and tentativas < 3:
+            try:
+                with pd.ExcelFile(nome_planilha) as reader:
+                    abas_existentes = {sheet: reader.parse(sheet) for sheet in reader.sheet_names}
+                
+                abas_existentes[nome_aba] = df
+                
+                with pd.ExcelWriter(nome_planilha, engine='openpyxl') as writer:
+                    for sheet, dados_aba in abas_existentes.items():
+                        if sheet == nome_aba:
+                            dados_aba.to_excel(writer, sheet_name=sheet, startrow=linha_correta, index=False)
+                            worksheet = writer.sheets[sheet]
+                            for col in worksheet.columns:
+                                max_len = 0
+                                col_letter = col[0].column_letter
+                                for cell in col:
+                                    if cell.value:
+                                        max_len = max(max_len, len(str(cell.value)))
+                                worksheet.column_dimensions[col_letter].width = max(max_len + 4, 12)
+                        else:
+                            dados_aba.to_excel(writer, sheet_name=sheet, index=False)
+                            
+                print(f"💾 Planilha salva. Aba '{nome_aba}' atualizada com layout perfeito!")
+                salvo_com_sucesso = True
+            except PermissionError:
+                print("⚠️ AVISO: Arquivo Excel ocupado, tentando novamente em breve...")
+                time.sleep(5)
+                tentativas += 1
+        
+        if houve_alteracao:
+            enviar_email_alerta(processos_alterados)
+        else:
+            print("☕ Nenhuma alteração de status encontrada nos processos ativos.")
+            
+    except Exception as e:
+        print(f"❌ Erro crítico na execução interna do robô: {e}")
+    finally:
+        driver.quit()
+        print("Navegador fechado com segurança pelo sistema de proteção.")
+
 if __name__ == "__main__":
-    # Aqui o script é ativado. Se o robô tiver uma função específica para raspar o portal,
-    # os dados capiturados entram aqui como lista para a função abaixo trabalhar:
-    executar_monitoramento(dados_portal=[])
+    # Quando roda no GitHub Actions, executa imediatamente uma vez
+    executar_robo()
