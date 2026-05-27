@@ -91,37 +91,48 @@ def executar_robo():
         print(f"❌ Erro crítico: Não encontrei as colunas na aba '{nome_aba}'. Verifique os cabeçalhos!")
         return
 
+    # ... (toda a parte de cima do 'for linha_cabecalho' continua IGUAL)
+
+    if df is None:
+        print(f"❌ Erro crítico: Não encontrei as colunas na aba '{nome_aba}'. Verifique os cabeçalhos!")
+        return
+
     df = df.fillna("")
     print(f"📊 Aba '{nome_aba}' carregada com sucesso! Encontradas {len(df)} linhas.")
 
-    # ===================================================
-    # 🌐 INICIALIZAÇÃO DO NAVEGADOR PARA A NUVEM
-    # ===================================================
-    print("🔧 Configurando as opções do Chrome para a nuvem...")
-    opcoes = webdriver.ChromeOptions()
-    opcoes.add_argument("--headless=new") # Força o Chrome a rodar em segundo plano
-    opcoes.add_argument("--no-sandbox")
-    opcoes.add_argument("--disable-dev-shm-usage")
-    opcoes.add_argument("--disable-gpu")
-    opcoes.add_argument("--window-size=1920,1080")
-    
-    print("🌐 Tentando abrir o navegador Chrome...")
-    driver = webdriver.Chrome(options=opcoes)
-    print("✅ Navegador aberto com sucesso na nuvem!")
-    # ===================================================
+    # 🛡️ === INÍCIO DO BLOQUEADOR DE ERROS ===
+    driver = None  # Deixa o espaço do navegador reservado
+    try:
+        print("🔧 Configurando as opções do Chrome para a nuvem...")
+        opcoes = webdriver.ChromeOptions()
+        opcoes.add_argument("--headless=new")
+        opcoes.add_argument("--no-sandbox")
+        opcoes.add_argument("--disable-dev-shm-usage")
+        opcoes.add_argument("--disable-gpu")
+        opcoes.add_argument("--window-size=1920,1080")
+        
+        print("🌐 Tentando abrir o navegador Chrome...")
+        driver = webdriver.Chrome(options=opcoes)
+        print("✅ Navegador aberto com sucesso na nuvem!")
 
-    # ... daqui para baixo continua o seu loop 'for' normal que usa o 'driver.get(...)'
-    
-    # === CONFIGURAÇÃO PARA RODAR NA NUVEM (SEM TELA) ===
-    opcoes = webdriver.ChromeOptions()
-    opcoes.add_argument("--headless=new") # Força o Chrome a rodar em segundo plano
-    opcoes.add_argument("--no-sandbox")
-    opcoes.add_argument("--disable-dev-shm-usage")
-    opcoes.add_argument("--disable-gpu")
-    opcoes.add_argument("--window-size=1920,1080")
-    
-    driver = webdriver.Chrome(options=opcoes)
-    # ===================================================
+        # -----------------------------------------------------------------
+        # ⚠️ IMPORTANTE: ATENÇÃO À INDENTAÇÃO (RECUO) COLA O SEU CÓDIGO AQUI
+        # Todo o seu loop antigo (for index, linha in df.iterrows():) 
+        # e as buscas no site precisam ficar empurradas para a direita,
+        # alinhadas abaixo desse 'try'.
+        # -----------------------------------------------------------------
+
+    except Exception as erro:
+        # 🚨 Se o site cair ou travar, ele executa isso e não quebra a máquina:
+        mensagem_erro = f"Atenção Micaelle! O robô falhou.\nDetalhe do erro: {erro}"
+        print(f"🚨 {mensagem_erro}")
+        # Se quiser ativar o aviso por e-mail depois, basta criar a função para isso aqui.
+
+    finally:
+        # 🔒 Segurança Máxima: Sempre fecha o Chrome no final, dando certo ou errado
+        if driver is not None:
+            driver.quit()
+            print("Navegador fechado com segurança pelo sistema de proteção.")
     
     try:
         # LOGIN NO PORTAL
