@@ -36,31 +36,36 @@ options = Options()
 options.add_argument("--headless")
 options.add_argument("--no-sandbox")
 options.add_argument("--disable-dev-shm-usage")
+options.add_argument("--window-size=1920,1080")
 driver = webdriver.Chrome(options=options)
-wait = WebDriverWait(driver, 20)
+wait = WebDriverWait(driver, 25)
 
 try:
     print("🌐 Abrindo o portal...")
     driver.get("https://santanadeparnaiba.aprova.com.br/login")
-    time.sleep(4)  # Pausa essencial para o formulário estabilizar na tela
+    time.sleep(5)  
     
-    print("🔑 Introduzindo os dados de acesso...")
-    campo_email = wait.until(EC.visibility_of_element_located((By.ID, "email")))
+    print("🔑 Inserindo os dados de acesso de forma persistente...")
+    # Força o foco no elemento para evitar o erro 'not interactable'
+    campo_email = wait.until(EC.presence_of_element_located((By.ID, "email")))
+    driver.execute_script("arguments[0].click();", campo_email)
     campo_email.send_keys(USER_PORTAL)
     
     campo_senha = driver.find_element(By.ID, "password")
+    driver.execute_script("arguments[0].click();", campo_senha)
     campo_senha.send_keys(SENHA_PORTAL)
     
-    print("🖱️ A clicar no botão Entrar...")
-    driver.find_element(By.XPATH, "//button[@type='submit' or contains(., 'Entrar')]").click()
-    time.sleep(5)
+    print("🖱️ Clicando no botão Entrar...")
+    botao_entrar = driver.find_element(By.XPATH, "//button[@type='submit' or contains(., 'Entrar')]")
+    driver.execute_script("arguments[0].click();", botao_entrar)
+    time.sleep(6)
     
-    print("📂 Acedendo à aba de Processos...")
+    print("📂 Acessando a aba de Processos...")
     driver.get("https://santanadeparnaiba.aprova.com.br/processos")
     wait.until(EC.presence_of_element_located((By.XPATH, "//tbody/tr")))
     time.sleep(4)
     
-    # Captura inteligente e compacta das linhas da tabela
+    # Captura inteligente das linhas da tabela
     linhas = driver.find_elements(By.XPATH, "//tbody/tr")
     for linha in linhas:
         texto = linha.text.strip()
