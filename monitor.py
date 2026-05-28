@@ -1,5 +1,6 @@
 import os
 import time
+import re
 import pandas as pd
 from datetime import datetime
 import smtplib
@@ -27,7 +28,7 @@ SENHA_PORTAL = os.getenv("SENHA_PORTAL", "")
 SENHA_GMAIL = os.getenv("SENHA_GMAIL", "")
 
 agora_str = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-print(f"===== INICIANDO MONITORAMENTO REVISADO E BLINDADO: {agora_str} =====")
+print(f"===== INICIANDO MONITORAMENTO ULTRA RESILIENTE: {agora_str} =====")
 
 # ==========================================
 # 1. LEITURA DA PLANILHA
@@ -41,7 +42,7 @@ except Exception as e:
     exit(1)
 
 # ==========================================
-# 2. AUTOMAÇÃO WEB (ESTABILIZADA E VALIDADA)
+# 2. AUTOMAÇÃO WEB (CAPTURA DE TEXTO BRUTO)
 # ==========================================
 dados_portal = {}
 
@@ -68,7 +69,7 @@ try:
         campo_email = inputs[0]
         campo_senha = inputs[1]
         
-        print("✍️ preenchendo campo de E-mail...")
+        print("✍️ Preenchendo campo de E-mail...")
         actions.move_to_element(campo_email).click().perform()
         campo_email.send_keys(USER_PORTAL)
         time.sleep(1)
@@ -85,40 +86,49 @@ try:
         except:
             driver.execute_script("document.getElementsByTagName('form')[0].submit();")
     else:
-        raise Exception("Não foi possível localizar os campos de entrada de dados na página.")
+        raise Exception("Não foi possível localizar os campos de entrada.")
         
     print("⏳ Aguardando processamento da sessão na nuvem...")
     time.sleep(12)
     
     print("📂 Redirecionando para a listagem de processos ativos...")
     driver.get("https://santanadeparnaiba.aprova.com.br/processos")
-    print("⏳ Aguardando a tabela e os dados internos carregarem por completo...")
-    time.sleep(15)  # Aumentado para dar tempo do portal carregar as linhas de dados
+    print("⏳ Forçando tempo de espera alto para carregamento dos dados internos...")
+    time.sleep(20)  # Tempo estendido para garantir a resposta do servidor
     
-    print("🔍 Varrendo linhas da tabela de dados...")
-    # Tenta buscar tanto por tr clássico quanto por elementos de linha flexíveis do portal
-    elementos_linha = []
-    for seletor in ["//tbody/tr", "//tr[contains(@class, 'row')]", "div.aprova-tabela-linha"]:
-        try:
-            if seletor.startswith("//"):
-                elementos_linha = driver.find_elements(By.XPATH, seletor)
-            else:
-                elementos_linha = driver.find_elements(By.CSS_SELECTOR, seletor)
-            if len(elementos_linha) > 0:
-                break
-        except:
-            continue
+    print("🔍 Realizando varredura de texto bruto na página...")
+    # Captura todo o texto visível da tela de uma vez, anulando problemas com tags fantasmas
+    texto_pagina = driver.find_element(By.TAG_NAME, "body").text
+    linhas_texto = texto_pagina.split("\n")
+    
+    # Processa blocos de texto para associar protocolos aos seus respectivos status
+    for i in range(len(linhas_texto) - 1):
+        termo = linhas_texto[i].strip().upper()
+        # Procura por padrões comuns de protocolo (Ex: letras e números encadeados)
+        if re.search(r'\d{4,}', termo) and len(termo) < 30:
+            # Assume que o status do processo estará nas linhas imediatamente seguintes do bloco
+            for j in range(1, min(5, len(linhas_texto) - i)):
+                possivel_status = linhas_texto[i + j].strip()
+                if any(s in possivel_status.lower() for s in ["análise", "deferido", "indeferido", "comunique-se", "aguardando", "andamento"]):
+                    dados_portal[termo] = possivel_status
+                    break
 
-    for linha in elementos_linha:
-        texto_linha = linha.text.strip()
-        if texto_linha:
-            partes = texto_linha.split("\n")
-            if len(partes) >= 2:
-                protocolo_web = partes[0].strip().upper()
-                status_web = partes[-1].strip()
-                dados_portal[protocolo_web] = status_web
+    # Se a busca por texto falhar, faz o fallback de segurança para tentar ler elementos tradicionais
+    if not dados_portal:
+        print("⚠️ Captura por texto vazio. Tentando varredura por elementos estruturais...")
+        for seletor in ["//tbody/tr", "div.aprova-tabela-linha", "//tr"]:
+            try:
+                elementos = driver.find_elements(By.XPATH, seletor) if seletor.startswith("//") else driver.find_elements(By.CSS_SELECTOR, seletor)
+                for el in elementos:
+                    partes = el.text.strip().split("\n")
+                    if len(partes) >= 2:
+                        dados_portal[partes[0].strip().upper()] = partes[-1].strip()
+                if dados_portal:
+                    break
+            except:
+                continue
 
-    print(f"✅ Mapeamento concluído. {len(dados_portal)} processos indexados.")
+    print(f"✅ Mapeamento concluído. {len(dados_portal)} processos indexados com sucesso.")
 
 except Exception as e:
     print(f"❌ Falha durante a execução da navegação automatizada: {e}")
@@ -161,7 +171,7 @@ if processos_alterados:
         print("💾 Gravando atualizações na planilha de controle...")
         with pd.ExcelWriter(nome_planilha, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
             df.to_excel(writer, sheet_name=nome_aba, index=False)
-        print("📊 Planilha updated com sucesso.")
+        print("📊 Planilha atualizada com sucesso.")
         
         if SENHA_GMAIL:
             print("✉️ Estruturando e-mail com os alertas visuais...")
