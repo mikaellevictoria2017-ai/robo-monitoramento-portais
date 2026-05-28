@@ -36,6 +36,7 @@ try:
     df = pd.read_excel(nome_planilha, sheet_name=nome_aba, skiprows=1)
     df.columns = [str(c).strip().upper() for c in df.columns]
     print(f"📥 Planilha carregada! Encontradas {len(df)} linhas para análise.")
+    print(f"📋 Protocolos na sua planilha neste momento: {df['PROTOCOLO'].dropna().tolist()}")
 except Exception as e:
     print(f"❌ Erro crítico ao ler a planilha Excel: {e}")
     exit(1)
@@ -117,7 +118,7 @@ try:
     linhas = driver.find_elements(By.XPATH, "//tbody/tr | //tr | //div[contains(@class, 'linha') or contains(@class, 'row')]")
     
     for linha in linhas:
-        texto_linha = Medical = linha.text.strip()
+        texto_linha = linha.text.strip()
         if texto_linha:
             partes = texto_linha.split("\n")
             if len(partes) >= 2:
@@ -127,6 +128,7 @@ try:
                     dados_portal[protocolo_web] = status_web
 
     print(f"✅ Mapeamento concluído. {len(dados_portal)} processos reais extraídos do site.")
+    print(f"🔎 LISTA DE PROTOCOLO(S) EXTRAÍDOS DO SITE: {list(dados_portal.keys())}")
 
 except Exception as e:
     print(f"❌ Falha durante a execução da navegação automatizada: {e}")
