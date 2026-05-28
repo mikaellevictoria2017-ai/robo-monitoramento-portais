@@ -40,7 +40,7 @@ except Exception as e:
     exit(1)
 
 # ==========================================
-# 2. AUTOMAÇÃO WEB (BLINDADA CONTRA TRAVAMENTOS)
+# 2. AUTOMAÇÃO WEB (CORRIGIDA CONTRA INVALID ELEMENT STATE)
 # ==========================================
 dados_portal = {}
 
@@ -48,38 +48,40 @@ options = Options()
 options.add_argument("--headless")
 options.add_argument("--no-sandbox")
 options.add_argument("--disable-dev-shm-usage")
-options.add_argument("--window-size=1920,1080")  # Força tela cheia na nuvem para não esconder elementos
+options.add_argument("--window-size=1920,1080")
 
 driver = webdriver.Chrome(options=options)
-wait = WebDriverWait(driver, 30)  # Aumentado para 30 segundos para evitar falhas por lentidão do site
+wait = WebDriverWait(driver, 30)
 
 try:
     print("🌐 Acessando o portal de Santana de Parnaíba...")
     driver.get("https://santanadeparnaiba.aprova.com.br/login")
-    time.sleep(4)  # Pausa mecânica necessária para estabilização visual do site
+    time.sleep(5)  # Tempo para o portal estabilizar o formulário
     
-    print("🔑 Preenchendo dados de acesso...")
+    print("🔑 Introduzindo os dados de acesso...")
+    # Aguarda o campo ficar pronto para clique
     campo_email = wait.until(EC.element_to_be_clickable((By.ID, "email")))
-    campo_email.clear()
+    campo_email.click()  # Foca no campo antes de digitar
     campo_email.send_keys(USER_PORTAL)
     
     campo_senha = wait.until(EC.element_to_be_clickable((By.ID, "password")))
-    campo_senha.clear()
+    campo_senha.click()  # Foca no campo antes de digitar
     campo_senha.send_keys(SENHA_PORTAL)
+    time.sleep(1)
     
-    print("🖱️ Clicando no botão Entrar...")
+    print("🔬 Efetuando o login...")
     botao_entrar = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[@type='submit']")))
     botao_entrar.click()
-    time.sleep(7)  # Tempo essencial para o portal processar a sessão na nuvem
+    time.sleep(8)  # Tempo firme para garantir o login na nuvem
     
     print("📂 Acessando a aba de processos...")
     driver.get("https://santanadeparnaiba.aprova.com.br/processos")
     
-    # Aguarda a tabela carregar de fato na tela antes de ler as linhas
+    # Aguarda a tabela carregar de facto antes de varrer
     wait.until(EC.presence_of_element_located((By.XPATH, "//tbody/tr")))
     time.sleep(4)
     
-    print("🔍 Coletando informações da tabela de processos...")
+    print("🔍 Coletando dados da tabela de processos...")
     linhas = driver.find_elements(By.XPATH, "//tbody/tr")
     for linha in linhas:
         texto_linha = linha.text.strip()
@@ -90,10 +92,10 @@ try:
                 status_web = partes[-1].strip()
                 dados_portal[protocolo_web] = status_web
                 
-    print(f"✅ Mapeamento concluído com sucesso. {len(dados_portal)} processos encontrados.")
+    print(f"✅ Varredura concluída. {len(dados_portal)} processos localizados no portal.")
 
 except Exception as e:
-    print(f"❌ Erro durante a execução da automação web: {e}")
+    print(f"❌ Erro na navegação web: {e}")
 finally:
     driver.quit()
     print("🔒 Navegador encerrado com segurança.")
@@ -120,13 +122,13 @@ for index, row in df.iterrows():
             break
             
     if status_novo and status_antigo != status_novo:
-        print(f"⚠️ MUDANÇA ENCONTRADA: Processo {protocolo_planilha} mudou para '{status_novo}'")
+        print(f"⚠️ ALTERAÇÃO: {protocolo_planilha} mudou para '{status_novo}'")
         processos_alterados.append({'protocolo': protocolo_planilha, 'antigo': status_antigo, 'novo': status_novo})
         df.at[index, col_status] = status_novo
         df.at[index, col_modificado] = agora_str
 
 # ==========================================
-# 4. SALVAMENTO E ENVIO DO E-MAIL (FORMATADO)
+# 4. SALVAMENTO E ENVIO DO E-MAIL (COM EMOJIS)
 # ==========================================
 if processos_alterados:
     try:
@@ -136,7 +138,7 @@ if processos_alterados:
         print("📊 Planilha atualizada com sucesso.")
         
         if SENHA_GMAIL:
-            print("✉️ Preparando disparo de e-mail com alertas visuais...")
+            print("✉️ Enviando e-mail com os alertas coloridos...")
             msg = MIMEMultipart()
             msg['From'] = EMAIL_REMETENTE
             msg['To'] = ", ".join(EMAIL_DESTINATARIOS)
@@ -152,7 +154,7 @@ if processos_alterados:
                 corpo += f"  🟢 Novo Status Atualizado: {x['novo']}\n\n"
                 
             corpo += (
-                f"A planilha de monitoramento já foi atualizada automaticamente.\n"
+                f"A planilha de monitoramento já foi updated automaticamente.\n"
                 f"Para verificar os detalhes completos, acesse o link do documento:\n"
                 f"{LINK_PLANILHA}\n\n"
                 f"Atenciosamente,\n"
