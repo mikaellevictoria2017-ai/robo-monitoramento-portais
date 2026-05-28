@@ -98,16 +98,14 @@ try:
     driver.get("https://santanadeparnaiba.aprova.com.br/processos")
     time.sleep(10)
     
-    # --- PASSO CHAVE: DESBLOQUEAR OS FILTROS DO PRINT ---
     try:
         print("🧹 Detetado botão de filtros ativos. Tentando clicar em 'Limpar filtros'...")
-        # Procura pelo botão que contém o texto de limpar filtros conforme o print
         botao_limpar = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(., 'Limpar filtros')] | //a[contains(., 'Limpar filtros')]")))
         actions.move_to_element(botao_limpar).click().perform()
         print("✨ Filtros limpos com sucesso! Aguardando recarregamento da tabela completa...")
         time.sleep(10)
     except Exception as f_err:
-        print(f"ℹ️ Botão 'Limpar filtros' não precisou ser acionado ou não foi encontrado: {f_err}")
+        print(f"ℹ️ Botão 'Limpar filtros' não precisou ser acionado ou não foi encontrado.")
 
     print("📜 Rolando a página para garantir a renderização...")
     driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
@@ -118,7 +116,7 @@ try:
     print("🔍 Capturando dados das linhas reais da tabela...")
     linhas = driver.find_elements(By.XPATH, "//tbody/tr | //tr | //div[contains(@class, 'linha') or contains(@class, 'row')]")
     
-    for linha in linhas:
+    for linha in lines:
         texto_linha = linha.text.strip()
         if texto_linha:
             partes = texto_linha.split("\n")
@@ -141,7 +139,6 @@ finally:
 # ==========================================
 processos_alterados = []
 
-# Mapeia as colunas exatas com base no print do cabeçalho do Excel
 col_status = "STATUS ATUAL" if "STATUS ATUAL" in df.columns else ([c for c in df.columns if "STATUS" in c][0] if any("STATUS" in c for c in df.columns) else "STATUS ATUAL")
 col_modificado = "MODIFICADO EM" if "MODIFICADO EM" in df.columns else ([c for c in df.columns if "MODIF" in c][0] if any("MODIF" in c for c in df.columns) else "MODIFICADO EM")
 
@@ -168,12 +165,12 @@ for index, row in df.iterrows():
 # ==========================================
 # 4. SALVAMENTO E ENVIO DO E-MAIL
 # ==========================================
-if procesos_alterados:
+if processos_alterados:
     try:
         print("💾 Gravando atualizações na planilha de controle...")
         with pd.ExcelWriter(nome_planilha, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
             df.to_excel(writer, sheet_name=nome_aba, index=False)
-        print("📊 Planilha atualizada com sucesso.")
+        print("📊 Planilha updated com sucesso.")
         
         if SENHA_GMAIL:
             print("✉️ Estruturando e-mail de alerta...")
