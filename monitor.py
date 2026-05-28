@@ -13,7 +13,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
 
 # ==========================================
-# CONFIGURAÇÕES E CHAVES (SEGURANÇA TOTAL)
+# CONFIGURAÇÕES E CHAVES
 # ==========================================
 EMAIL_REMETENTE = "mikaellevictoria2017@gmail.com"
 EMAIL_DESTINATARIOS = ["santos.micaelle2006@gmail.com"]
@@ -27,7 +27,7 @@ SENHA_PORTAL = os.getenv("SENHA_PORTAL", "")
 SENHA_GMAIL = os.getenv("SENHA_GMAIL", "")
 
 agora_str = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-print(f"===== INICIANDO MONITORAMENTO CAMUFLADO: {agora_str} =====")
+print(f"===== INICIANDO MONITORAMENTO DESBLOQUEADOR DE FILTROS: {agora_str} =====")
 
 # ==========================================
 # 1. LEITURA DA PLANILHA
@@ -41,12 +41,11 @@ except Exception as e:
     exit(1)
 
 # ==========================================
-# 2. AUTOMAÇÃO WEB (CAMUFLAGEM ANTI-BOT ACTIVATED)
+# 2. AUTOMAÇÃO WEB
 # ==========================================
 dados_portal = {}
 
 options = Options()
-# Nova tecnologia headless para burlar bloqueios de tabelas dinâmicas em nuvem
 options.add_argument("--headless=new") 
 options.add_argument("--no-sandbox")
 options.add_argument("--disable-dev-shm-usage")
@@ -79,12 +78,12 @@ try:
         print("✍️ Preenchendo campo de E-mail...")
         actions.move_to_element(campo_email).click().perform()
         campo_email.send_keys(USER_PORTAL)
-        time.sleep(1.5)
+        time.sleep(1)
         
         print("✍️ Preenchendo campo de Senha...")
         actions.move_to_element(campo_senha).click().perform()
         campo_senha.send_keys(SENHA_PORTAL)
-        time.sleep(1.5)
+        time.sleep(1)
         
         print("🚀 Acionando botão de login...")
         botao = driver.find_element(By.CSS_SELECTOR, "button[type='submit']")
@@ -92,16 +91,31 @@ try:
     else:
         raise Exception("Não foi possível renderizar os campos de entrada.")
         
-    print("⏳ Aguardando validação dos cookies de segurança do portal...")
+    print("⏳ Aguardando validação dos cookies...")
     time.sleep(15)
     
     print("📂 Navegando para a URL interna de processos...")
     driver.get("https://santanadeparnaiba.aprova.com.br/processos")
-    print("⏳ Aguardando a tabela carregar na tela com camuflagem...")
-    time.sleep(20)  
+    time.sleep(10)
     
-    print("🔍 Capturando os dados das linhas da tabela...")
-    # Busca por elementos de linha estruturais e genéricos que o site gera
+    # --- PASSO CHAVE: DESBLOQUEAR OS FILTROS DO PRINT ---
+    try:
+        print("🧹 Detetado botão de filtros ativos. Tentando clicar em 'Limpar filtros'...")
+        # Procura pelo botão que contém o texto de limpar filtros conforme o print
+        botao_limpar = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(., 'Limpar filtros')] | //a[contains(., 'Limpar filtros')]")))
+        actions.move_to_element(botao_limpar).click().perform()
+        print("✨ Filtros limpos com sucesso! Aguardando recarregamento da tabela completa...")
+        time.sleep(10)
+    except Exception as f_err:
+        print(f"ℹ️ Botão 'Limpar filtros' não precisou ser acionado ou não foi encontrado: {f_err}")
+
+    print("📜 Rolando a página para garantir a renderização...")
+    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+    time.sleep(3)
+    driver.execute_script("window.scrollTo(0, 0);")
+    time.sleep(5)  
+    
+    print("🔍 Capturando dados das linhas reais da tabela...")
     linhas = driver.find_elements(By.XPATH, "//tbody/tr | //tr | //div[contains(@class, 'linha') or contains(@class, 'row')]")
     
     for linha in linhas:
@@ -109,11 +123,9 @@ try:
         if texto_linha:
             partes = texto_linha.split("\n")
             if len(partes) >= 2:
-                # O primeiro item costuma ser o protocolo e o último o status
                 protocolo_web = partes[0].strip().upper()
                 status_web = partes[-1].strip()
-                # Filtro simples para ignorar cabeçalhos ou lixo visual da captura ampla
-                if any(char.isdigit() for char in protocolo_web) and len(protocolo_web) < 30:
+                if any(char.isdigit() for char in protocolo_web) and len(protocolo_web) < 35:
                     dados_portal[protocolo_web] = status_web
 
     print(f"✅ Mapeamento concluído. {len(dados_portal)} processos reais extraídos do site.")
@@ -125,13 +137,15 @@ finally:
     print("🔒 Instância do navegador encerrada com segurança.")
 
 # ==========================================
-# 3. COMPARAÇÃO DOS STATUS
+# 3. COMPARAÇÃO DOS STATUS MAPEADOS
 # ==========================================
 processos_alterados = []
-col_status = [c for c in df.columns if "STATUS" in c][0] if any("STATUS" in c for c in df.columns) else "STATUS"
-col_modificado = [c for c in df.columns if "MODIFICADO" in c][0] if any("MODIFICADO" in c for c in df.columns) else "MODIFICADO"
 
-print("⚖️ Comparando registros internos com os dados coletados...")
+# Mapeia as colunas exatas com base no print do cabeçalho do Excel
+col_status = "STATUS ATUAL" if "STATUS ATUAL" in df.columns else ([c for c in df.columns if "STATUS" in c][0] if any("STATUS" in c for c in df.columns) else "STATUS ATUAL")
+col_modificado = "MODIFICADO EM" if "MODIFICADO EM" in df.columns else ([c for c in df.columns if "MODIF" in c][0] if any("MODIF" in c for c in df.columns) else "MODIFICADO EM")
+
+print(f"⚖️ Comparando registros utilizando as colunas: [{col_status}] e [{col_modificado}]...")
 for index, row in df.iterrows():
     if str(row.get("ATIVO", "")).strip().upper() != "SIM":
         continue
@@ -146,7 +160,7 @@ for index, row in df.iterrows():
             break
             
     if status_novo and status_antigo != status_novo:
-        print(f"⚠️ ALTERAÇÃO ENCONTRADA: Processo {protocolo_planilha} mudou para '{status_novo}'")
+        print(f"⚠️ ALTERAÇÃO ENCONTRADA: Processo {protocolo_planilha} mudou de '{status_antigo}' para '{status_novo}'")
         processos_alterados.append({'protocolo': protocolo_planilha, 'antigo': status_antigo, 'novo': status_novo})
         df.at[index, col_status] = status_novo
         df.at[index, col_modificado] = agora_str
@@ -154,7 +168,7 @@ for index, row in df.iterrows():
 # ==========================================
 # 4. SALVAMENTO E ENVIO DO E-MAIL
 # ==========================================
-if processos_alterados:
+if procesos_alterados:
     try:
         print("💾 Gravando atualizações na planilha de controle...")
         with pd.ExcelWriter(nome_planilha, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
@@ -162,7 +176,7 @@ if processos_alterados:
         print("📊 Planilha atualizada com sucesso.")
         
         if SENHA_GMAIL:
-            print("✉️ Estruturando e-mail com os alertas visuais...")
+            print("✉️ Estruturando e-mail de alerta...")
             msg = MIMEMultipart()
             msg['From'] = EMAIL_REMETENTE
             msg['To'] = ", ".join(EMAIL_DESTINATARIOS)
@@ -198,4 +212,4 @@ if processos_alterados:
     except Exception as e:
         print(f"❌ Falha ao salvar arquivo Excel ou disparar e-mail: {e}")
 else:
-    print("🦥 Varredura finalizada. Nenhum processo sofreu modificações hoje.")
+    print("🦥 Varredura finalizada. Nenhum processo sofreu modificações válidas hoje.")
