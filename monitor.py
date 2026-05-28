@@ -33,21 +33,16 @@ print(f"===== INICIANDO MONITORAMENTO DESBLOQUEADOR DE FILTROS: {agora_str} ====
 # 1. LEITURA DA PLANILHA (MÉTODO BLINDADO)
 # ==========================================
 try:
-    # Carrega a planilha tentando ler o cabeçalho original
     df = pd.read_excel(nome_planilha, sheet_name=nome_aba)
     
-    # Se a primeira linha contiver 'PROTOCOLO' ou algo similar, ajusta o cabeçalho
     if df.shape[0] > 0 and not any(any(x in str(c).upper() for x in ['PROTOCOLO', 'NUMER']) for c in df.columns):
-        # Tenta re-ler pulando a primeira linha caso o cabeçalho real esteja abaixo
         df_teste = pd.read_excel(nome_planilha, sheet_name=nome_aba, skiprows=1)
         if any(any(x in str(c).upper() for x in ['PROTOCOLO', 'NUMER']) for c in df_teste.columns):
             df = df_teste
 
-    # Limpa e padroniza os nomes das colunas para busca
     df.columns = [str(c).strip().upper() for c in df.columns]
     print(f"📥 Planilha carregada com sucesso! Colunas encontradas: {list(df.columns)}")
     
-    # Identifica dinamicamente as colunas principais
     col_protocolo = [c for c in df.columns if "PROTOCOLO" in c or "NUMER" in c or "PROCESSO" in c][0]
     col_ativo = [c for c in df.columns if "ATIVO" in c][0] if any("ATIVO" in c for c in df.columns) else None
     col_status = [c for c in df.columns if "STATUS" in c or "SITUA" in c][0] if any("STATUS" in c or "SITUA" in c for c in df.columns) else "STATUS ATUAL"
@@ -137,22 +132,48 @@ try:
     print("🔍 Capturando dados das linhas reais da tabela...")
     linhas = driver.find_elements(By.XPATH, "//tbody/tr | //tr | //div[contains(@class, 'linha') or contains(@class, 'row')]")
     
-    for linha in linhas:
-        texto_linha = ...
+    # Lista de termos comuns para identificar um status válido de processo
+    palavras_status = [
+        'ANÁLISE', 'DEFERIDO', 'INDEFERIDO', 'COMUNIQUE-SE', 'AGUARDANDO', 
+        'TRIAGEM', 'CONCLUÍDO', 'EMITIDO', 'CORREÇÃO', 'PENDENTE', 'EMISSÃO',
+        'PROCESSO', 'VALIDAÇÃO', 'REVISÃO', 'SOLICITADO', 'DESPACHO'
+    ]
+    
+    for i, linha in enumerate(linhas):
         texto_linha = linha.text.strip()
         if texto_linha:
-            partes = texto_linha.split("\n")
+            partes = [p.strip() for p in texto_linha.split("\n") if p.strip()]
             if len(partes) >= 2:
-                protocolo_web = partes[0].strip().upper()
-                status_web = partes[-1].strip()
+                protocolo_web = partes[0].upper()
+                
+                # Validação básica para ignorar falsos protocolos e cabeçalhos
                 if any(char.isdigit() for char in protocolo_web) and len(protocolo_web) < 35:
+                    status_web = ""
+                    
+                    # 1ª Tentativa: Procura de trás para frente um elemento que combine com termos de status
+                    for parte in reversed(partes[1:]):
+                        if any(termo in parte.upper() for termo in palavras_status):
+                            status_web = parte
+                            break
+                    
+                    # 2ª Tentativa: Se não achou termo clássico, faz um filtro inteligente eliminando nomes próprios longos
+                    if not status_web:
+                        for parte in reversed(partes[1:]):
+                            # Status geralmente são curtos ou descritivos, nomes completos costumam ter mais de 3 espaços
+                            if parte.count(" ") <= 3 and not any(char.isdigit() for char in parte):
+                                status_web = parte
+                                break
+                    
+                    # Se mesmo assim falhar, pega o último por segurança
+                    if not status_web:
+                        status_web = partes[-1]
+                        
                     dados_portal[protocolo_web] = status_web
 
     print(f"✅ Mapeamento concluído. {len(dados_portal)} processos reais extraídos do site.")
-    print(f"🔎 LISTA DE PROTOCOLO(S) EXTRAÍDOS DO SITE: {list(dados_portal.keys())}")
 
 except Exception as e:
-    print(f"❌ Falha durante a execução da navegação automatizada: {e}")
+    print(f"❌ Falha durante a execução da navigation automatizada: {e}")
 finally:
     driver.quit()
     print("🔒 Instância do navegador encerrada com segurança.")
@@ -203,7 +224,7 @@ if processos_alterados:
                 f"Olá,\n\n"
                 f"O robô identificou que houve alteração de status nos seguintes processos ativos:\n\n"
             )
-            for x in procesos_alterados:
+            for x in processos_alterados:
                 corpo += f"• Protocolo: {x['protocolo']}\n"
                 corpo += f"  🔴 Status Anterior: {x['antigo']}\n"
                 corpo += f"  🟢 Novo Status Atualizado: {x['novo']}\n\n"
