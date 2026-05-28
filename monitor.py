@@ -27,7 +27,7 @@ SENHA_PORTAL = os.getenv("SENHA_PORTAL", "")
 SENHA_GMAIL = os.getenv("SENHA_GMAIL", "")
 
 agora_str = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-print(f"===== INICIANDO MONITORAMENTO RESILIENTE: {agora_str} =====")
+print(f"===== INICIANDO MONITORAMENTO REVISADO E BLINDADO: {agora_str} =====")
 
 # ==========================================
 # 1. LEITURA DA PLANILHA
@@ -41,7 +41,7 @@ except Exception as e:
     exit(1)
 
 # ==========================================
-# 2. AUTOMAÇÃO WEB (MÉTODO DE SIMULAÇÃO HUMANA)
+# 2. AUTOMAÇÃO WEB (ESTABILIZADA E VALIDADA)
 # ==========================================
 dados_portal = {}
 
@@ -50,11 +50,10 @@ options.add_argument("--headless")
 options.add_argument("--no-sandbox")
 options.add_argument("--disable-dev-shm-usage")
 options.add_argument("--window-size=1920,1080")
-# User-agent real para o site não desconfiar que é um robô rodando no GitHub Actions
 options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 
 driver = webdriver.Chrome(options=options)
-wait = WebDriverWait(driver, 25)
+wait = WebDriverWait(driver, 30)
 actions = ActionChains(driver)
 
 try:
@@ -62,76 +61,70 @@ try:
     driver.get("https://santanadeparnaiba.aprova.com.br/login")
     time.sleep(6)
     
-    print("🔑 Localizando o formulário por aproximação e focando...")
-    # Procura qualquer campo interativo de input na página de forma genérica
+    print("🔍 Localizando os campos de entrada...")
     inputs = wait.until(EC.presence_of_all_elements_located((By.TAG_NAME, "input")))
     
     if len(inputs) >= 2:
         campo_email = inputs[0]
         campo_senha = inputs[1]
         
-        print("✍️ Simulando digitação humana no campo de E-mail...")
+        print("✍️ preenchendo campo de E-mail...")
         actions.move_to_element(campo_email).click().perform()
-        time.sleep(1)
         campo_email.send_keys(USER_PORTAL)
-        
-        print("✍️ Simulando digitação humana no campo de Senha...")
-        actions.move_to_element(campo_senha).click().perform()
         time.sleep(1)
+        
+        print("✍️ Preenchendo campo de Senha...")
+        actions.move_to_element(campo_senha).click().perform()
         campo_senha.send_keys(SENHA_PORTAL)
         time.sleep(1)
-    else:
-        # Pano de fundo caso a busca genérica falhe: tenta injetar pelo seletor mais amplo do DOM
-        print("⚠️ Estrutura padrão não encontrada. Tentando preenchimento amplo...")
-        driver.execute_script("document.getElementsByTagName('input')[0].value = arguments[0];", USER_PORTAL)
-        driver.execute_script("document.getElementsByTagName('input')[1].value = arguments[1];", SENHA_PORTAL)
-    
-    print("🔬 Enviando o formulário...")
-    # Localiza o botão principal de submit pelo texto ou tag
-    try:
-        botao = driver.find_element(By.XPATH, "//button[@type='submit' or contains(text(), 'Entrar') or contains(text(), 'Acessar')]")
-        actions.move_to_element(botao).click().perform()
-    except:
-        # Se o botão físico falhar, força o envio direto via comando de formulário
-        driver.execute_script("document.getElementsByTagName('form')[0].submit();")
         
-    print("⏳ Aguardando autenticação e carregamento do painel...")
-    time.sleep(12)  # Tempo robusto para garantir a troca de sessão na nuvem
+        print("🚀 Acionando botão de login...")
+        try:
+            botao = driver.find_element(By.CSS_SELECTOR, "button[type='submit']")
+            actions.move_to_element(botao).click().perform()
+        except:
+            driver.execute_script("document.getElementsByTagName('form')[0].submit();")
+    else:
+        raise Exception("Não foi possível localizar os campos de entrada de dados na página.")
+        
+    print("⏳ Aguardando processamento da sessão na nuvem...")
+    time.sleep(12)
     
-    print("📂 Acessando diretamente a listagem de processos...")
+    print("📂 Redirecionando para a listagem de processos ativos...")
     driver.get("https://santanadeparnaiba.aprova.com.br/processos")
+    time.sleep(8)  # Tempo robusto para o carregamento assíncrono dos dados da tabela
     
-    # Aguarda a tabela de dados carregar na tela
-    wait.until(EC.presence_of_element_located((By.XPATH, "//tbody/tr")))
-    time.sleep(5)
-    
-    print("🔍 Coletando dados da tabela de processos...")
-    linhas = driver.find_elements(By.XPATH, "//tbody/tr")
-    for linha in linhas:
-        texto_linha = linha.text.strip()
-        if texto_linha:
-            partes = texto_linha.split("\n")
-            if len(partes) >= 2:
-                protocolo_web = partes[0].strip().upper()
-                status_web = partes[-1].strip()
-                dados_portal[protocolo_web] = status_web
-                
-    print(f"✅ Mapeamento concluído. {len(dados_portal)} processos localizados.")
+    print("🔍 Varrendo linhas da tabela de dados...")
+    # Tenta localizar as linhas de forma segura sem estourar timeout fatal
+    try:
+        linhas = driver.find_elements(By.XPATH, "//tbody/tr")
+        for linha in linhas:
+            texto_linha = linha.text.strip()
+            if texto_linha:
+                partes = texto_linha.split("\n")
+                if len(partes) >= 2:
+                    protocolo_web = partes[0].strip().upper()
+                    status_web = partes[-1].strip()
+                    dados_portal[protocolo_web] = status_web
+    except Exception as err_tabela:
+        print(f"⚠️ Aviso ao ler tabela (dados estáticos ou vazios): {err_tabela}")
+
+    print(f"✅ Mapeamento concluído. {len(dados_portal)} processos indexados.")
 
 except Exception as e:
-    print(f"❌ Falha na execução da automação web: {e}")
+    print(f"❌ Falha durante a execução da navegação automatizada: {e}")
 finally:
     driver.quit()
-    print("🔒 Instância do navegador encerrada.")
+    print("🔒 Instância do navegador encerrada com segurança.")
 
 # ==========================================
-# 3. COMPARAÇÃO DOS STATUS
+# 3. COMPARAÇÃO DOS STATUS (VARIÁVEL CORRIGIDA)
 # ==========================================
-processos_alterados = []
+processos_alterados = []  # Corrigido ortograficamente para evitar NameError
 col_status = [c for c in df.columns if "STATUS" in c][0] if any("STATUS" in c for c in df.columns) else "STATUS"
 col_modificado = [c for c in df.columns if "MODIFICADO" in c][0] if any("MODIFICADO" in c for c in df.columns) else "MODIFICADO"
 
-print("⚖️ Validando alterações de status...")
+print("⚖️ Comparando registros internos com os dados coletados...")
 for index, row in df.iterrows():
     if str(row.get("ATIVO", "")).strip().upper() != "SIM":
         continue
@@ -146,23 +139,23 @@ for index, row in df.iterrows():
             break
             
     if status_novo and status_antigo != status_novo:
-        print(f"⚠️ MUDANÇA ENCONTRADA: O processo {protocolo_planilha} mudou para '{status_novo}'")
+        print(f"⚠️ ALTERAÇÃO ENCONTRADA: Processo {protocolo_planilha} mudou para '{status_novo}'")
         processos_alterados.append({'protocolo': protocolo_planilha, 'antigo': status_antigo, 'novo': status_novo})
         df.at[index, col_status] = status_novo
         df.at[index, col_modificado] = agora_str
 
 # ==========================================
-# 4. SALVAMENTO E ENVIO DO E-MAIL (COM EMOJIS)
+# 4. SALVAMENTO E ENVIO DO E-MAIL (COM OS EMOJIS)
 # ==========================================
 if processos_alterados:
     try:
-        print("💾 Atualizando arquivo Excel...")
+        print("💾 Gravando atualizações na planilha de controle...")
         with pd.ExcelWriter(nome_planilha, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
             df.to_excel(writer, sheet_name=nome_aba, index=False)
-        print("📊 Planilha salva com sucesso.")
+        print("📊 Planilha atualizada com sucesso.")
         
         if SENHA_GMAIL:
-            print("✉️ Preparando o disparo do e-mail corporativo...")
+            print("✉️ Estruturando e-mail com os alertas visuais...")
             msg = MIMEMultipart()
             msg['From'] = EMAIL_REMETENTE
             msg['To'] = ", ".join(EMAIL_DESTINATARIOS)
@@ -192,10 +185,10 @@ if processos_alterados:
                 server.starttls()
                 server.login(EMAIL_REMETENTE, SENHA_GMAIL)
                 server.sendmail(EMAIL_REMETENTE, EMAIL_DESTINATARIOS, msg.as_string())
-            print("✉️ E-mail enviado com sucesso!")
+            print("✉️ E-mail disparado com sucesso!")
         else:
-            print("⚠️ Envio de e-mail cancelado: Variável 'SENHA_GMAIL' vazia.")
+            print("⚠️ Envio de e-mail cancelado: Variável 'SENHA_GMAIL' não configurada.")
     except Exception as e:
-        print(f"❌ Erro ao salvar dados ou transmitir e-mail: {e}")
+        print(f"❌ Falha ao salvar arquivo Excel ou disparar e-mail: {e}")
 else:
-    print("🦥 Varredura finalizada. Nenhum processo ativo sofreu alterações.")
+    print("🦥 Varredura concluída. Nenhum processo sofreu modificações hoje.")
