@@ -1,6 +1,5 @@
 import os
 import time
-import re
 import pandas as pd
 from datetime import datetime
 import smtplib
@@ -28,7 +27,7 @@ SENHA_PORTAL = os.getenv("SENHA_PORTAL", "")
 SENHA_GMAIL = os.getenv("SENHA_GMAIL", "")
 
 agora_str = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-print(f"===== INICIANDO MONITORAMENTO ULTRA RESILIENTE: {agora_str} =====")
+print(f"===== INICIANDO MONITORAMENTO CAMUFLADO: {agora_str} =====")
 
 # ==========================================
 # 1. LEITURA DA PLANILHA
@@ -42,25 +41,33 @@ except Exception as e:
     exit(1)
 
 # ==========================================
-# 2. AUTOMAÇÃO WEB (CAPTURA DE TEXTO BRUTO)
+# 2. AUTOMAÇÃO WEB (CAMUFLAGEM ANTI-BOT ACTIVATED)
 # ==========================================
 dados_portal = {}
 
 options = Options()
-options.add_argument("--headless")
+# Nova tecnologia headless para burlar bloqueios de tabelas dinâmicas em nuvem
+options.add_argument("--headless=new") 
 options.add_argument("--no-sandbox")
 options.add_argument("--disable-dev-shm-usage")
 options.add_argument("--window-size=1920,1080")
-options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+options.add_argument("--disable-blink-features=AutomationControlled")
+options.add_experimental_option("excludeSwitches", ["enable-automation"])
+options.add_experimental_option('useAutomationExtension', False)
+options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
 
 driver = webdriver.Chrome(options=options)
-wait = WebDriverWait(driver, 30)
+driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
+    "source": "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
+})
+
+wait = WebDriverWait(driver, 35)
 actions = ActionChains(driver)
 
 try:
     print("🌐 Acessando o portal de Santana de Parnaíba...")
     driver.get("https://santanadeparnaiba.aprova.com.br/login")
-    time.sleep(6)
+    time.sleep(7)
     
     print("🔍 Localizando os campos de entrada...")
     inputs = wait.until(EC.presence_of_all_elements_located((By.TAG_NAME, "input")))
@@ -72,63 +79,44 @@ try:
         print("✍️ Preenchendo campo de E-mail...")
         actions.move_to_element(campo_email).click().perform()
         campo_email.send_keys(USER_PORTAL)
-        time.sleep(1)
+        time.sleep(1.5)
         
         print("✍️ Preenchendo campo de Senha...")
         actions.move_to_element(campo_senha).click().perform()
         campo_senha.send_keys(SENHA_PORTAL)
-        time.sleep(1)
+        time.sleep(1.5)
         
         print("🚀 Acionando botão de login...")
-        try:
-            botao = driver.find_element(By.CSS_SELECTOR, "button[type='submit']")
-            actions.move_to_element(botao).click().perform()
-        except:
-            driver.execute_script("document.getElementsByTagName('form')[0].submit();")
+        botao = driver.find_element(By.CSS_SELECTOR, "button[type='submit']")
+        actions.move_to_element(botao).click().perform()
     else:
-        raise Exception("Não foi possível localizar os campos de entrada.")
+        raise Exception("Não foi possível renderizar os campos de entrada.")
         
-    print("⏳ Aguardando processamento da sessão na nuvem...")
-    time.sleep(12)
+    print("⏳ Aguardando validação dos cookies de segurança do portal...")
+    time.sleep(15)
     
-    print("📂 Redirecionando para a listagem de processos ativos...")
+    print("📂 Navegando para a URL interna de processos...")
     driver.get("https://santanadeparnaiba.aprova.com.br/processos")
-    print("⏳ Forçando tempo de espera alto para carregamento dos dados internos...")
-    time.sleep(20)  # Tempo estendido para garantir a resposta do servidor
+    print("⏳ Aguardando a tabela carregar na tela com camuflagem...")
+    time.sleep(20)  
     
-    print("🔍 Realizando varredura de texto bruto na página...")
-    # Captura todo o texto visível da tela de uma vez, anulando problemas com tags fantasmas
-    texto_pagina = driver.find_element(By.TAG_NAME, "body").text
-    linhas_texto = texto_pagina.split("\n")
+    print("🔍 Capturando os dados das linhas da tabela...")
+    # Busca por elementos de linha estruturais e genéricos que o site gera
+    linhas = driver.find_elements(By.XPATH, "//tbody/tr | //tr | //div[contains(@class, 'linha') or contains(@class, 'row')]")
     
-    # Processa blocos de texto para associar protocolos aos seus respectivos status
-    for i in range(len(linhas_texto) - 1):
-        termo = linhas_texto[i].strip().upper()
-        # Procura por padrões comuns de protocolo (Ex: letras e números encadeados)
-        if re.search(r'\d{4,}', termo) and len(termo) < 30:
-            # Assume que o status do processo estará nas linhas imediatamente seguintes do bloco
-            for j in range(1, min(5, len(linhas_texto) - i)):
-                possivel_status = linhas_texto[i + j].strip()
-                if any(s in possivel_status.lower() for s in ["análise", "deferido", "indeferido", "comunique-se", "aguardando", "andamento"]):
-                    dados_portal[termo] = possivel_status
-                    break
+    for linha in linhas:
+        texto_linha = linha.text.strip()
+        if texto_linha:
+            partes = texto_linha.split("\n")
+            if len(partes) >= 2:
+                # O primeiro item costuma ser o protocolo e o último o status
+                protocolo_web = partes[0].strip().upper()
+                status_web = partes[-1].strip()
+                # Filtro simples para ignorar cabeçalhos ou lixo visual da captura ampla
+                if any(char.isdigit() for char in protocolo_web) and len(protocolo_web) < 30:
+                    dados_portal[protocolo_web] = status_web
 
-    # Se a busca por texto falhar, faz o fallback de segurança para tentar ler elementos tradicionais
-    if not dados_portal:
-        print("⚠️ Captura por texto vazio. Tentando varredura por elementos estruturais...")
-        for seletor in ["//tbody/tr", "div.aprova-tabela-linha", "//tr"]:
-            try:
-                elementos = driver.find_elements(By.XPATH, seletor) if seletor.startswith("//") else driver.find_elements(By.CSS_SELECTOR, seletor)
-                for el in elementos:
-                    partes = el.text.strip().split("\n")
-                    if len(partes) >= 2:
-                        dados_portal[partes[0].strip().upper()] = partes[-1].strip()
-                if dados_portal:
-                    break
-            except:
-                continue
-
-    print(f"✅ Mapeamento concluído. {len(dados_portal)} processos indexados com sucesso.")
+    print(f"✅ Mapeamento concluído. {len(dados_portal)} processos reais extraídos do site.")
 
 except Exception as e:
     print(f"❌ Falha durante a execução da navegação automatizada: {e}")
