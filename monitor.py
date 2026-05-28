@@ -26,7 +26,7 @@ SENHA_PORTAL = os.getenv("SENHA_PORTAL", "")
 SENHA_GMAIL = os.getenv("SENHA_GMAIL", "")
 
 agora_str = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-print(f"===== INICIANDO MONITORAMENTO SEGURO: {agora_str} =====")
+print(f"===== INICIANDO MONITORAMENTO DEFINITIVO: {agora_str} =====")
 
 # ==========================================
 # 1. LEITURA DA PLANILHA
@@ -40,7 +40,7 @@ except Exception as e:
     exit(1)
 
 # ==========================================
-# 2. AUTOMAÇÃO WEB (CORRIGIDA CONTRA INVALID ELEMENT STATE)
+# 2. AUTOMAÇÃO WEB (MÉTODO INJEÇÃO JS - ANTI-TRAVAMENTO)
 # ==========================================
 dados_portal = {}
 
@@ -56,32 +56,32 @@ wait = WebDriverWait(driver, 30)
 try:
     print("🌐 Acessando o portal de Santana de Parnaíba...")
     driver.get("https://santanadeparnaiba.aprova.com.br/login")
-    time.sleep(5)  # Tempo para o portal estabilizar o formulário
     
-    print("🔑 Introduzindo os dados de acesso...")
-    # Aguarda o campo ficar pronto para clique
-    campo_email = wait.until(EC.element_to_be_clickable((By.ID, "email")))
-    campo_email.click()  # Foca no campo antes de digitar
-    campo_email.send_keys(USER_PORTAL)
+    # Aguarda o elemento essencial de login existir na estrutura da página
+    wait.until(EC.presence_of_element_located((By.ID, "email")))
+    time.sleep(3)
     
-    campo_senha = wait.until(EC.element_to_be_clickable((By.ID, "password")))
-    campo_senha.click()  # Foca no campo antes de digitar
-    campo_senha.send_keys(SENHA_PORTAL)
+    print("🔑 Injetando dados de acesso via JavaScript para burlar bloqueios visuais...")
+    # Injeta o e-mail e a senha direto no valor dos campos, contornando erros de "interactable"
+    driver.execute_script(f"document.getElementById('email').value = '{USER_PORTAL}';")
+    driver.execute_script(f"document.getElementById('password').value = '{SENHA_PORTAL}';")
     time.sleep(1)
     
-    print("🔬 Efetuando o login...")
-    botao_entrar = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[@type='submit']")))
-    botao_entrar.click()
-    time.sleep(8)  # Tempo firme para garantir o login na nuvem
+    print("🔬 Disparando o envio do formulário de login...")
+    # Encontra o formulário e envia os dados diretamente
+    form_login = driver.find_element(By.XPATH, "//form")
+    driver.execute_script("arguments[0].submit();", form_login)
+    print("⏳ Aguardando processamento do login...")
+    time.sleep(8)
     
     print("📂 Acessando a aba de processos...")
     driver.get("https://santanadeparnaiba.aprova.com.br/processos")
     
-    # Aguarda a tabela carregar de facto antes de varrer
+    # Aguarda a tabela aparecer em tela
     wait.until(EC.presence_of_element_located((By.XPATH, "//tbody/tr")))
     time.sleep(4)
     
-    print("🔍 Coletando dados da tabela de processos...")
+    print("🔍 Varrendo a tabela de processos ativos...")
     linhas = driver.find_elements(By.XPATH, "//tbody/tr")
     for linha in linhas:
         texto_linha = linha.text.strip()
@@ -154,7 +154,7 @@ if processos_alterados:
                 corpo += f"  🟢 Novo Status Atualizado: {x['novo']}\n\n"
                 
             corpo += (
-                f"A planilha de monitoramento já foi updated automaticamente.\n"
+                f"A planilha de monitoramento já foi atualizada automaticamente.\n"
                 f"Para verificar os detalhes completos, acesse o link do documento:\n"
                 f"{LINK_PLANILHA}\n\n"
                 f"Atenciosamente,\n"
