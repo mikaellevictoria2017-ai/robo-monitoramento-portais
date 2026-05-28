@@ -132,11 +132,10 @@ try:
     print("🔍 Capturando dados das linhas reais da tabela...")
     linhas = driver.find_elements(By.XPATH, "//tbody/tr | //tr | //div[contains(@class, 'linha') or contains(@class, 'row')]")
     
-    # Lista de termos comuns para identificar um status válido de processo
     palavras_status = [
         'ANÁLISE', 'DEFERIDO', 'INDEFERIDO', 'COMUNIQUE-SE', 'AGUARDANDO', 
         'TRIAGEM', 'CONCLUÍDO', 'EMITIDO', 'CORREÇÃO', 'PENDENTE', 'EMISSÃO',
-        'PROCESSO', 'VALIDAÇÃO', 'REVISÃO', 'SOLICITADO', 'DESPACHO'
+        'PROCESSO', 'VALIDAÇÃO', 'REVISÃO', 'SOLICITADO', 'DESPACHO', 'ENCAMINHADO'
     ]
     
     for i, linha in enumerate(linhas):
@@ -146,25 +145,20 @@ try:
             if len(partes) >= 2:
                 protocolo_web = partes[0].upper()
                 
-                # Validação básica para ignorar falsos protocolos e cabeçalhos
                 if any(char.isdigit() for char in protocolo_web) and len(protocolo_web) < 35:
                     status_web = ""
                     
-                    # 1ª Tentativa: Procura de trás para frente um elemento que combine com termos de status
                     for parte in reversed(partes[1:]):
                         if any(termo in parte.upper() for termo in palavras_status):
                             status_web = parte
                             break
                     
-                    # 2ª Tentativa: Se não achou termo clássico, faz um filtro inteligente eliminando nomes próprios longos
                     if not status_web:
                         for parte in reversed(partes[1:]):
-                            # Status geralmente são curtos ou descritivos, nomes completos costumam ter mais de 3 espaços
                             if parte.count(" ") <= 3 and not any(char.isdigit() for char in parte):
                                 status_web = parte
                                 break
                     
-                    # Se mesmo assim falhar, pega o último por segurança
                     if not status_web:
                         status_web = partes[-1]
                         
@@ -173,81 +167,9 @@ try:
     print(f"✅ Mapeamento concluído. {len(dados_portal)} processos reais extraídos do site.")
 
 except Exception as e:
-    print(f"❌ Falha durante a execução da navigation automatizada: {e}")
+    print(f"❌ Falha durante a execução da navegação automatizada: {e}")
 finally:
     driver.quit()
     print("🔒 Instância do navegador encerrada com segurança.")
 
-# ==========================================
-# 3. COMPARAÇÃO DOS STATUS MAPEADOS
-# ==========================================
-processos_alterados = []
-
-print(f"⚖️ Comparando registros utilizando as colunas identificadas...")
-for index, row in df.iterrows():
-    if col_ativo and str(row.get(col_ativo, "")).strip().upper() != "SIM":
-        continue
-        
-    protocolo_planilha = str(row[col_protocolo]).strip().upper()
-    status_antigo = str(row.get(col_status, "")).strip()
-    
-    status_novo = None
-    for k, v in dados_portal.items():
-        if protocolo_planilha in k or k in protocolo_planilha:
-            status_novo = v
-            break
-            
-    if status_novo and status_antigo != status_novo:
-        print(f"⚠️ ALTERAÇÃO ENCONTRADA: Processo {protocolo_planilha} mudou de '{status_antigo}' para '{status_novo}'")
-        processos_alterados.append({'protocolo': protocolo_planilha, 'antigo': status_antigo, 'novo': status_novo})
-        df.at[index, col_status] = status_novo
-        df.at[index, col_modificado] = agora_str
-
-# ==========================================
-# 4. SALVAMENTO E ENVIO DO E-MAIL
-# ==========================================
-if processos_alterados:
-    try:
-        print("💾 Gravando atualizações na planilha de controle...")
-        with pd.ExcelWriter(nome_planilha, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
-            df.to_excel(writer, sheet_name=nome_aba, index=False)
-        print("📊 Planilha atualizada com sucesso.")
-        
-        if SENHA_GMAIL:
-            print("✉️ Estruturando e-mail de alerta...")
-            msg = MIMEMultipart()
-            msg['From'] = EMAIL_REMETENTE
-            msg['To'] = ", ".join(EMAIL_DESTINATARIOS)
-            msg['Subject'] = "⚠️ Alteração de Status Detectada nos Protocolos"
-            
-            corpo = (
-                f"Olá,\n\n"
-                f"O robô identificou que houve alteração de status nos seguintes processos ativos:\n\n"
-            )
-            for x in processos_alterados:
-                corpo += f"• Protocolo: {x['protocolo']}\n"
-                corpo += f"  🔴 Status Anterior: {x['antigo']}\n"
-                corpo += f"  🟢 Novo Status Atualizado: {x['novo']}\n\n"
-                
-            corpo += (
-                f"A planilha de monitoramento já foi atualizada automaticamente.\n"
-                f"Para verificar os detalhes completos, acesse o link do documento:\n"
-                f"{LINK_PLANILHA}\n\n"
-                f"Atenciosamente,\n"
-                f"Robô de Monitoramento de Protocolos\n"
-                f"Verificação efetuada em: {agora_str}"
-            )
-            
-            msg.attach(MIMEText(corpo, 'plain'))
-            
-            with smtplib.SMTP('smtp.gmail.com', 587) as server:
-                server.starttls()
-                server.login(EMAIL_REMETENTE, SENHA_GMAIL)
-                server.sendmail(EMAIL_REMETENTE, EMAIL_DESTINATARIOS, msg.as_string())
-            print("✉️ E-mail disparado com sucesso!")
-        else:
-            print("⚠️ Envio de e-mail cancelado: Variável 'SENHA_GMAIL' não configurada.")
-    except Exception as e:
-        print(f"❌ Falha ao salvar arquivo Excel ou disparar e-mail: {e}")
-else:
-    print("🦥 Varredura finalizada. Nenhum processo sofreu modificações válidas hoje.")
+# =================================
