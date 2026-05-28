@@ -92,22 +92,31 @@ try:
     
     print("📂 Redirecionando para a listagem de processos ativos...")
     driver.get("https://santanadeparnaiba.aprova.com.br/processos")
-    time.sleep(8)  # Tempo robusto para o carregamento assíncrono dos dados da tabela
+    print("⏳ Aguardando a tabela e os dados internos carregarem por completo...")
+    time.sleep(15)  # Aumentado para dar tempo do portal carregar as linhas de dados
     
     print("🔍 Varrendo linhas da tabela de dados...")
-    # Tenta localizar as linhas de forma segura sem estourar timeout fatal
-    try:
-        linhas = driver.find_elements(By.XPATH, "//tbody/tr")
-        for linha in linhas:
-            texto_linha = linha.text.strip()
-            if texto_linha:
-                partes = texto_linha.split("\n")
-                if len(partes) >= 2:
-                    protocolo_web = partes[0].strip().upper()
-                    status_web = partes[-1].strip()
-                    dados_portal[protocolo_web] = status_web
-    except Exception as err_tabela:
-        print(f"⚠️ Aviso ao ler tabela (dados estáticos ou vazios): {err_tabela}")
+    # Tenta buscar tanto por tr clássico quanto por elementos de linha flexíveis do portal
+    elementos_linha = []
+    for seletor in ["//tbody/tr", "//tr[contains(@class, 'row')]", "div.aprova-tabela-linha"]:
+        try:
+            if seletor.startswith("//"):
+                elementos_linha = driver.find_elements(By.XPATH, seletor)
+            else:
+                elementos_linha = driver.find_elements(By.CSS_SELECTOR, seletor)
+            if len(elementos_linha) > 0:
+                break
+        except:
+            continue
+
+    for linha in elementos_linha:
+        texto_linha = linha.text.strip()
+        if texto_linha:
+            partes = texto_linha.split("\n")
+            if len(partes) >= 2:
+                protocolo_web = partes[0].strip().upper()
+                status_web = partes[-1].strip()
+                dados_portal[protocolo_web] = status_web
 
     print(f"✅ Mapeamento concluído. {len(dados_portal)} processos indexados.")
 
@@ -118,9 +127,9 @@ finally:
     print("🔒 Instância do navegador encerrada com segurança.")
 
 # ==========================================
-# 3. COMPARAÇÃO DOS STATUS (VARIÁVEL CORRIGIDA)
+# 3. COMPARAÇÃO DOS STATUS
 # ==========================================
-processos_alterados = []  # Corrigido ortograficamente para evitar NameError
+processos_alterados = []
 col_status = [c for c in df.columns if "STATUS" in c][0] if any("STATUS" in c for c in df.columns) else "STATUS"
 col_modificado = [c for c in df.columns if "MODIFICADO" in c][0] if any("MODIFICADO" in c for c in df.columns) else "MODIFICADO"
 
@@ -145,14 +154,14 @@ for index, row in df.iterrows():
         df.at[index, col_modificado] = agora_str
 
 # ==========================================
-# 4. SALVAMENTO E ENVIO DO E-MAIL (COM OS EMOJIS)
+# 4. SALVAMENTO E ENVIO DO E-MAIL
 # ==========================================
 if processos_alterados:
     try:
         print("💾 Gravando atualizações na planilha de controle...")
         with pd.ExcelWriter(nome_planilha, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
             df.to_excel(writer, sheet_name=nome_aba, index=False)
-        print("📊 Planilha atualizada com sucesso.")
+        print("📊 Planilha updated com sucesso.")
         
         if SENHA_GMAIL:
             print("✉️ Estruturando e-mail com os alertas visuais...")
@@ -191,4 +200,4 @@ if processos_alterados:
     except Exception as e:
         print(f"❌ Falha ao salvar arquivo Excel ou disparar e-mail: {e}")
 else:
-    print("🦥 Varredura concluída. Nenhum processo sofreu modificações hoje.")
+    print("🦥 Varredura finalizada. Nenhum processo sofreu modificações hoje.")
