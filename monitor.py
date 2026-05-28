@@ -116,8 +116,8 @@ try:
     print("🔍 Capturando dados das linhas reais da tabela...")
     linhas = driver.find_elements(By.XPATH, "//tbody/tr | //tr | //div[contains(@class, 'linha') or contains(@class, 'row')]")
     
-    for linha in lines:
-        texto_linha = linha.text.strip()
+    for linha in linhas:
+        texto_linha = Medical = linha.text.strip()
         if texto_linha:
             partes = texto_linha.split("\n")
             if len(partes) >= 2:
@@ -170,7 +170,7 @@ if processos_alterados:
         print("💾 Gravando atualizações na planilha de controle...")
         with pd.ExcelWriter(nome_planilha, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
             df.to_excel(writer, sheet_name=nome_aba, index=False)
-        print("📊 Planilha updated com sucesso.")
+        print("📊 Planilha atualizada com sucesso.")
         
         if SENHA_GMAIL:
             print("✉️ Estruturando e-mail de alerta...")
