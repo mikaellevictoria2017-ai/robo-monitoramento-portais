@@ -52,7 +52,7 @@ try:
     campo_senha = driver.find_element(By.ID, "password")
     campo_senha.send_keys(SENHA_PORTAL)
     
-    print("Mpost 🖱️ Efetuando o clique de login...")
+    print("🖱️ Efetuando o clique de login...")
     botao_entrar = driver.find_element(By.XPATH, "//button[@type='submit' or contains(., 'Entrar')]")
     botao_entrar.click()
     time.sleep(8)
@@ -60,9 +60,8 @@ try:
     print("📂 Acessando a aba de Processos de Santana de Parnaíba...")
     driver.get("https://santanadeparnaiba.aprova.com.br/processos")
     
-    # Verifica se realmente entrou ou se foi barrado no login
     if "login" in driver.current_url:
-        print("❌ Erro: O portal não passou da tela de login. Verifique se USER_PORTAL ou SENHA_PORTAL estão corretos nas Secrets.")
+        print("❌ Erro: O portal não passou da tela de login. Verifique as credenciais USER_PORTAL e SENHA_PORTAL.")
         exit(1)
         
     wait.until(EC.presence_of_element_located((By.XPATH, "//tbody/tr")))
@@ -108,7 +107,7 @@ for index, row in df.iterrows():
         df.at[index, col_modificado] = agora_str
 
 # 4. SALVAMENTO E ENVIO DE E-MAIL
-if procesos_alterados:
+if processos_alterados:
     try:
         with pd.ExcelWriter(nome_planilha, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
             df.to_excel(writer, sheet_name=nome_aba, index=False)
