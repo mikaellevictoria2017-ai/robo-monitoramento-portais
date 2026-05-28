@@ -40,25 +40,27 @@ driver = webdriver.Chrome(options=options)
 wait = WebDriverWait(driver, 20)
 
 try:
-    print("🌐 Fazendo login no portal...")
+    print("🌐 Abrindo o portal...")
     driver.get("https://santanadeparnaiba.aprova.com.br/login")
+    time.sleep(4)  # Pausa essencial para o formulário estabilizar na tela
     
-    # Preenche direto sem forçar a limpeza que trava o site
-    campo_email = wait.until(EC.element_to_be_clickable((By.ID, "email")))
+    print("🔑 Introduzindo os dados de acesso...")
+    campo_email = wait.until(EC.visibility_of_element_located((By.ID, "email")))
     campo_email.send_keys(USER_PORTAL)
     
     campo_senha = driver.find_element(By.ID, "password")
     campo_senha.send_keys(SENHA_PORTAL)
     
+    print("🖱️ A clicar no botão Entrar...")
     driver.find_element(By.XPATH, "//button[@type='submit' or contains(., 'Entrar')]").click()
     time.sleep(5)
     
-    print("📂 Acessando a aba de Processos...")
+    print("📂 Acedendo à aba de Processos...")
     driver.get("https://santanadeparnaiba.aprova.com.br/processos")
     wait.until(EC.presence_of_element_located((By.XPATH, "//tbody/tr")))
-    time.sleep(3)
+    time.sleep(4)
     
-    # Captura inteligente das linhas da tabela
+    # Captura inteligente e compacta das linhas da tabela
     linhas = driver.find_elements(By.XPATH, "//tbody/tr")
     for linha in linhas:
         texto = linha.text.strip()
@@ -103,7 +105,7 @@ if processos_alterados:
     try:
         with pd.ExcelWriter(nome_planilha, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
             df.to_excel(writer, sheet_name=nome_aba, index=False)
-        print("💾 Planilha updated.")
+        print("💾 Planilha salva com sucesso.")
         
         if SENHA_GMAIL:
             msg = MIMEMultipart()
