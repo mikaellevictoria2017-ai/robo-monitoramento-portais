@@ -46,28 +46,30 @@ try:
     time.sleep(5)  
     
     print("🔑 Preenchendo os dados de acesso...")
-    # Aguarda o campo estar de fato pronto para receber texto na tela
     campo_email = wait.until(EC.element_to_be_clickable((By.ID, "email")))
-    driver.execute_script("arguments[0].scrollIntoView(true);", campo_email)
-    time.sleep(1)
     campo_email.send_keys(USER_PORTAL)
     
     campo_senha = driver.find_element(By.ID, "password")
     campo_senha.send_keys(SENHA_PORTAL)
     
-    print("🖱️ Clicando no botão Entrar...")
+    print("Mpost 🖱️ Efetuando o clique de login...")
     botao_entrar = driver.find_element(By.XPATH, "//button[@type='submit' or contains(., 'Entrar')]")
-    driver.execute_script("arguments[0].click();", botao_entrar)
-    time.sleep(6)
+    botao_entrar.click()
+    time.sleep(8)
     
-    print("📂 Navegando até a aba 'Processos' de Santana de Parnaíba...")
+    print("📂 Acessando a aba de Processos de Santana de Parnaíba...")
     driver.get("https://santanadeparnaiba.aprova.com.br/processos")
+    
+    # Verifica se realmente entrou ou se foi barrado no login
+    if "login" in driver.current_url:
+        print("❌ Erro: O portal não passou da tela de login. Verifique se USER_PORTAL ou SENHA_PORTAL estão corretos nas Secrets.")
+        exit(1)
+        
     wait.until(EC.presence_of_element_located((By.XPATH, "//tbody/tr")))
     time.sleep(4)
     
-    # Mapeamento e captura das linhas da tabela
     linhas = driver.find_elements(By.XPATH, "//tbody/tr")
-    for linha in linhas:
+    for linha in list(linhas):
         texto = linha.text.strip()
         if texto:
             linhas_texto = texto.split("\n")
@@ -106,7 +108,7 @@ for index, row in df.iterrows():
         df.at[index, col_modificado] = agora_str
 
 # 4. SALVAMENTO E ENVIO DE E-MAIL
-if processos_alterados:
+if procesos_alterados:
     try:
         with pd.ExcelWriter(nome_planilha, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
             df.to_excel(writer, sheet_name=nome_aba, index=False)
@@ -115,7 +117,7 @@ if processos_alterados:
         if SENHA_GMAIL:
             msg = MIMEMultipart()
             msg['From'], msg['To'], msg['Subject'] = EMAIL_REMETENTE, ", ".join(EMAIL_DESTINATARIOS), "⚠️ Alteração de Status detectada"
-            corpo = f"O robô detectou mudanças nos processos ativos:\n\n" + "\n".join([f"- {x['protocolo']}: {x['antigo']} -> {x['novo']}" for x in processes_alterados]) + f"\n\nLink: {LINK_PLANILHA}"
+            corpo = f"O robô detectou mudanças nos processos ativos:\n\n" + "\n".join([f"- {x['protocolo']}: {x['antigo']} -> {x['novo']}" for x in processos_alterados]) + f"\n\nLink: {LINK_PLANILHA}"
             msg.attach(MIMEText(corpo, 'plain'))
             with smtplib.SMTP('smtp.gmail.com', 587) as server:
                 server.starttls()
