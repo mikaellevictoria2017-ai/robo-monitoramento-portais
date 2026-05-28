@@ -41,18 +41,18 @@ driver = webdriver.Chrome(options=options)
 wait = WebDriverWait(driver, 25)
 
 try:
-    print("🌐 Abrindo o portal...")
-    driver.get("https://santanadeparnaiba.aprova.com.br/login")
+    print("🌐 Abrindo a tela de login global do portal...")
+    driver.get("https://aprova.com.br/login")
     time.sleep(5)  
     
-    print("🔑 Inserindo os dados de acesso de forma persistente...")
-    # Força o foco no elemento para evitar o erro 'not interactable'
-    campo_email = wait.until(EC.presence_of_element_located((By.ID, "email")))
-    driver.execute_script("arguments[0].click();", campo_email)
+    print("🔑 Preenchendo os dados de acesso...")
+    # Aguarda o campo estar de fato pronto para receber texto na tela
+    campo_email = wait.until(EC.element_to_be_clickable((By.ID, "email")))
+    driver.execute_script("arguments[0].scrollIntoView(true);", campo_email)
+    time.sleep(1)
     campo_email.send_keys(USER_PORTAL)
     
     campo_senha = driver.find_element(By.ID, "password")
-    driver.execute_script("arguments[0].click();", campo_senha)
     campo_senha.send_keys(SENHA_PORTAL)
     
     print("🖱️ Clicando no botão Entrar...")
@@ -60,12 +60,12 @@ try:
     driver.execute_script("arguments[0].click();", botao_entrar)
     time.sleep(6)
     
-    print("📂 Acessando a aba de Processos...")
+    print("📂 Navegando até a aba 'Processos' de Santana de Parnaíba...")
     driver.get("https://santanadeparnaiba.aprova.com.br/processos")
     wait.until(EC.presence_of_element_located((By.XPATH, "//tbody/tr")))
     time.sleep(4)
     
-    # Captura inteligente das linhas da tabela
+    # Mapeamento e captura das linhas da tabela
     linhas = driver.find_elements(By.XPATH, "//tbody/tr")
     for linha in linhas:
         texto = linha.text.strip()
@@ -115,7 +115,7 @@ if processos_alterados:
         if SENHA_GMAIL:
             msg = MIMEMultipart()
             msg['From'], msg['To'], msg['Subject'] = EMAIL_REMETENTE, ", ".join(EMAIL_DESTINATARIOS), "⚠️ Alteração de Status detectada"
-            corpo = f"O robô detectou mudanças nos processos ativos:\n\n" + "\n".join([f"- {x['protocolo']}: {x['antigo']} -> {x['novo']}" for x in processos_alterados]) + f"\n\nLink: {LINK_PLANILHA}"
+            corpo = f"O robô detectou mudanças nos processos ativos:\n\n" + "\n".join([f"- {x['protocolo']}: {x['antigo']} -> {x['novo']}" for x in processes_alterados]) + f"\n\nLink: {LINK_PLANILHA}"
             msg.attach(MIMEText(corpo, 'plain'))
             with smtplib.SMTP('smtp.gmail.com', 587) as server:
                 server.starttls()
