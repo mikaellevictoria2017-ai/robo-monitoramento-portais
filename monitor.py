@@ -11,13 +11,11 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from webdriver_manager.chrome import ChromeDriverManager
 
 # ==========================================
 # CONFIGURAÇÕES INICIAIS E VARIÁVEIS DE AMBIENTE
 # ==========================================
 
-# Ajuste com as suas informações reais de e-mail e links:
 EMAIL_REMETENTE = "mikaellevictoria2017@gmail.com"
 EMAIL_DESTINATARIOS = ["santos.micaelle2006@gmail.com"]
 LINK_PLANILHA = "https://artesanourbanismo-my.sharepoint.com/:x:/g/personal/mvitoria_artesanourbanismo_com_br/IQBI7DqicZMtSIrLcPwTnM2SAamaiye_3EPs-HAEKli1mZo?e=Zjekvn"
@@ -25,7 +23,6 @@ LINK_PLANILHA = "https://artesanourbanismo-my.sharepoint.com/:x:/g/personal/mvit
 nome_planilha = "monitor_protocolos.xlsx"
 nome_aba = "Santana de Parnaíba"
 
-# Puxando as credenciais secretas do GitHub Actions
 USER_PORTAL = os.getenv("USER_PORTAL", "")
 SENHA_PORTAL = os.getenv("SENHA_PORTAL", "")
 SENHA_GMAIL = os.getenv("SENHA_GMAIL", "")
@@ -78,7 +75,7 @@ def enviar_email_alerta(lista_alteracoes):
     
     msg.attach(MIMEText(corpo_html, 'html'))
     
-    with smtplib.SMTP('smtp.gmail.com', 557) as server:
+    with smtplib.SMTP('smtp.gmail.com', 587) as server:
         server.starttls()
         server.login(EMAIL_REMETENTE, SENHA_GMAIL)
         server.sendmail(EMAIL_REMETENTE, EMAIL_DESTINATARIOS, msg.as_string())
@@ -91,7 +88,6 @@ if not os.path.exists(nome_planilha):
     exit(1)
 
 try:
-    # Localiza a linha correta do cabeçalho de forma inteligente
     linha_correta = 0
     with pd.ExcelFile(nome_planilha) as xls:
         df_teste = pd.read_excel(xls, sheet_name=nome_aba, nrows=10)
@@ -108,11 +104,10 @@ except Exception as e:
     print(f"❌ Erro ao ler a planilha Excel: {e}")
     exit(1)
 
-# Validação das colunas obrigatórias
 colunas_necessarias = ["PROTOCOLO", "ATIVO"]
 for col in colunas_necessarias:
     if col not in df.columns:
-        print(f"❌ Erro: A coluna obrigatória '{col}' não foi encontrada na planilha. Colunas atuais: {list(df.columns)}")
+        print(f"❌ Erro: A coluna obrigatória '{col}' não foi encontrada na planilha.")
         exit(1)
 
 col_status = [c for c in df.columns if "STATUS" in c][0] if any("STATUS" in c for c in df.columns) else None
@@ -137,7 +132,8 @@ chrome_options.add_argument("--no-sandbox")
 chrome_options.add_argument("--disable-dev-shm-usage")
 chrome_options.add_argument("--window-size=1920,1080")
 
-driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+# Aqui iniciamos o Chrome diretamente, sem precisar do WebDriverManager externo
+driver = webdriver.Chrome(options=chrome_options)
 wait = WebDriverWait(driver, 15)
 
 try:
@@ -159,15 +155,13 @@ try:
     time.sleep(6)
     
     print("Iniciando varredura em busca dos protocolos na tabela...")
-    # Coleta todas as linhas da tabela de processos na tela
     linhas_tabela = driver.find_elements(By.XPATH, "//tbody/tr")
     print(f"✅ {len(linhas_tabela)} processos encontrados na tela.")
     
-    for linha in linhas_tabela:
+    for linha in lines_tabela:
         try:
             celulas = linha.find_elements(By.XPATH, "./td")
             if len(celulas) >= 2:
-                # Procura de forma inteligente em qual célula está o número do protocolo
                 protocolo_texto = ""
                 for c in celulas:
                     texto_celula = c.text.strip()
@@ -178,7 +172,6 @@ try:
                 if not protocolo_texto:
                     protocolo_texto = celulas[1].text.strip().split('\n')[0].strip().upper()
                 
-                # O status do processo geralmente fica nas últimas colunas
                 status_texto = celulas[-2].text.strip() if len(celulas) >= 3 else celulas[-1].text.strip()
                 
                 if protocolo_texto:
@@ -198,7 +191,7 @@ finally:
 print("🔮 Comparando dados da planilha com o portal...")
 for index, text_linha in df.iterrows():
     if str(text_linha["ATIVO"]).strip().upper() != "SIM":
-        continue  # Pula os processos inativos de forma limpa
+        continue
 
     protocolo = str(text_linha["PROTOCOLO"]).strip().upper()
     status_antigo = str(text_linha[col_status]).strip()
@@ -226,7 +219,6 @@ for index, text_linha in df.iterrows():
     else:
         print(f"✅ {protocolo}: Status igual ao do portal ('{status_antigo}').")
 
-# Remove textos nulos antes de salvar
 for col in df.columns:
     df[col] = df[col].astype(str).replace('nan', '')
 
@@ -270,7 +262,6 @@ if houve_alteracao:
             print(f"❌ Erro ao salvar planilha: {e}")
             break
 
-    # Envio do e-mail de alerta
     if processos_alterados:
         if not SENHA_GMAIL:
             print("⚠️ Alerta do Sistema: A variável 'SENHA_GMAIL' veio vazia da nuvem. O e-mail não pôde ser enviado.")
