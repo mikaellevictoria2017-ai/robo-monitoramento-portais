@@ -43,13 +43,11 @@ try:
     print("🌐 Fazendo login no portal...")
     driver.get("https://santanadeparnaiba.aprova.com.br/login")
     
-    # Aguarda o campo de e-mail estar visível e clicável para evitar erros
+    # Preenche direto sem forçar a limpeza que trava o site
     campo_email = wait.until(EC.element_to_be_clickable((By.ID, "email")))
-    campo_email.clear()
     campo_email.send_keys(USER_PORTAL)
     
     campo_senha = driver.find_element(By.ID, "password")
-    campo_senha.clear()
     campo_senha.send_keys(SENHA_PORTAL)
     
     driver.find_element(By.XPATH, "//button[@type='submit' or contains(., 'Entrar')]").click()
@@ -88,7 +86,6 @@ for index, row in df.iterrows():
     protocolo_planilha = str(row["PROTOCOLO"]).strip().upper()
     status_antigo = str(row.get(col_status, "")).strip()
     
-    # Busca o protocolo da planilha dentro da lista extraída do portal
     status_novo = None
     for k, v in dados_portal.items():
         if protocolo_planilha in k or k in protocolo_planilha:
@@ -106,7 +103,7 @@ if processos_alterados:
     try:
         with pd.ExcelWriter(nome_planilha, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
             df.to_excel(writer, sheet_name=nome_aba, index=False)
-        print("💾 Planilha atualizada com sucesso.")
+        print("💾 Planilha updated.")
         
         if SENHA_GMAIL:
             msg = MIMEMultipart()
@@ -121,4 +118,4 @@ if processos_alterados:
     except Exception as e:
         print(f"❌ Erro ao salvar dados ou enviar e-mail: {e}")
 else:
-    print("🦥 Nenhum processo ativo sofreu alteração no portal.")
+    print("🦥 Nenhum processo ativo sofreu alteração no portal. Tudo atualizado!")
