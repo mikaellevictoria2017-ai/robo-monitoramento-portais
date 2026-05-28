@@ -30,15 +30,35 @@ agora_str = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
 print(f"===== INICIANDO MONITORAMENTO DESBLOQUEADOR DE FILTROS: {agora_str} =====")
 
 # ==========================================
-# 1. LEITURA DA PLANILHA
+# 1. LEITURA DA PLANILHA (MÉTODO BLINDADO)
 # ==========================================
 try:
-    df = pd.read_excel(nome_planilha, sheet_name=nome_aba, skiprows=1)
+    # Carrega a planilha tentando ler o cabeçalho original
+    df = pd.read_excel(nome_planilha, sheet_name=nome_aba)
+    
+    # Se a primeira linha contiver 'PROTOCOLO' ou algo similar, ajusta o cabeçalho
+    if df.shape[0] > 0 and not any(any(x in str(c).upper() for x in ['PROTOCOLO', 'NUMER']) for c in df.columns):
+        # Tenta re-ler pulando a primeira linha caso o cabeçalho real esteja abaixo
+        df_teste = pd.read_excel(nome_planilha, sheet_name=nome_aba, skiprows=1)
+        if any(any(x in str(c).upper() for x in ['PROTOCOLO', 'NUMER']) for c in df_teste.columns):
+            df = df_teste
+
+    # Limpa e padroniza os nomes das colunas para busca
     df.columns = [str(c).strip().upper() for c in df.columns]
-    print(f"📥 Planilha carregada! Encontradas {len(df)} linhas para análise.")
-    print(f"📋 Protocolos na sua planilha neste momento: {df['PROTOCOLO'].dropna().tolist()}")
+    print(f"📥 Planilha carregada com sucesso! Colunas encontradas: {list(df.columns)}")
+    
+    # Identifica dinamicamente as colunas principais
+    col_protocolo = [c for c in df.columns if "PROTOCOLO" in c or "NUMER" in c or "PROCESSO" in c][0]
+    col_ativo = [c for c in df.columns if "ATIVO" in c][0] if any("ATIVO" in c for c in df.columns) else None
+    col_status = [c for c in df.columns if "STATUS" in c or "SITUA" in c][0] if any("STATUS" in c or "SITUA" in c for c in df.columns) else "STATUS ATUAL"
+    col_modificado = [c for c in df.columns if "MODIF" in c or "DATA" in c][0] if any("MODIF" in c or "DATA" in c for c in df.columns) else "MODIFICADO EM"
+
+    print(f"🎯 Colunas mapeadas -> Protocolo: [{col_protocolo}] | Ativo: [{col_ativo}] | Status: [{col_status}]")
+    lista_protocolos_planilha = df[col_protocolo].dropna().astype(str).str.strip().str.upper().tolist()
+    print(f"📋 Protocolos localizados na sua planilha: {lista_protocolos_planilha}")
+
 except Exception as e:
-    print(f"❌ Erro crítico ao ler a planilha Excel: {e}")
+    print(f"❌ Erro crítico ao processar a estrutura da planilha Excel: {e}")
     exit(1)
 
 # ==========================================
@@ -118,6 +138,7 @@ try:
     linhas = driver.find_elements(By.XPATH, "//tbody/tr | //tr | //div[contains(@class, 'linha') or contains(@class, 'row')]")
     
     for linha in linhas:
+        texto_linha = ...
         texto_linha = linha.text.strip()
         if texto_linha:
             partes = texto_linha.split("\n")
@@ -141,15 +162,12 @@ finally:
 # ==========================================
 processos_alterados = []
 
-col_status = "STATUS ATUAL" if "STATUS ATUAL" in df.columns else ([c for c in df.columns if "STATUS" in c][0] if any("STATUS" in c for c in df.columns) else "STATUS ATUAL")
-col_modificado = "MODIFICADO EM" if "MODIFICADO EM" in df.columns else ([c for c in df.columns if "MODIF" in c][0] if any("MODIF" in c for c in df.columns) else "MODIFICADO EM")
-
-print(f"⚖️ Comparando registros utilizando as colunas: [{col_status}] e [{col_modificado}]...")
+print(f"⚖️ Comparando registros utilizando as colunas identificadas...")
 for index, row in df.iterrows():
-    if str(row.get("ATIVO", "")).strip().upper() != "SIM":
+    if col_ativo and str(row.get(col_ativo, "")).strip().upper() != "SIM":
         continue
         
-    protocolo_planilha = str(row["PROTOCOLO"]).strip().upper()
+    protocolo_planilha = str(row[col_protocolo]).strip().upper()
     status_antigo = str(row.get(col_status, "")).strip()
     
     status_novo = None
@@ -185,7 +203,7 @@ if processos_alterados:
                 f"Olá,\n\n"
                 f"O robô identificou que houve alteração de status nos seguintes processos ativos:\n\n"
             )
-            for x in processos_alterados:
+            for x in procesos_alterados:
                 corpo += f"• Protocolo: {x['protocolo']}\n"
                 corpo += f"  🔴 Status Anterior: {x['antigo']}\n"
                 corpo += f"  🟢 Novo Status Atualizado: {x['novo']}\n\n"
