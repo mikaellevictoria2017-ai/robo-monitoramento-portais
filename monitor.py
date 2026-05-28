@@ -172,4 +172,88 @@ finally:
     driver.quit()
     print("🔒 Instância do navegador encerrada com segurança.")
 
-# =================================
+# ==========================================
+# 3. COMPARAÇÃO DOS STATUS MAPEADOS
+# ==========================================
+processos_alterados = []
+
+print(f"⚖️ Comparando registros utilizando as colunas identificadas...")
+for index, row in df.iterrows():
+    if col_ativo and str(row.get(col_ativo, "")).strip().upper() != "SIM":
+        continue
+        
+    protocolo_planilha = str(row[col_protocolo]).strip().upper()
+    status_antigo = str(row.get(col_status, "")).strip()
+    
+    status_novo = None
+    for k, v in dados_portal.items():
+        if protocolo_planilha in k or k in protocolo_planilha:
+            status_novo = v
+            break
+            
+    if status_novo and status_antigo != status_novo:
+        print(f"⚠️ ALTERAÇÃO ENCONTRADA: Processo {protocolo_planilha} mudou de '{status_antigo}' para '{status_novo}'")
+        processos_alterados.append({'protocolo': protocolo_planilha, 'antigo': status_antigo, 'novo': status_novo})
+        df.at[index, col_status] = status_novo
+        df.at[index, col_modificado] = agora_str
+
+# ==========================================
+# 4. SALVAMENTO E ENVIO DO E-MAIL (MÉTODO HTML BLINDADO)
+# ==========================================
+if procesos_alterados:
+    try:
+        print("💾 Gravando atualizações na planilha de controle...")
+        with pd.ExcelWriter(nome_planilha, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
+            df.to_excel(writer, sheet_name=nome_aba, index=False)
+        print("📊 Planilha atualizada com sucesso.")
+        
+        if SENHA_GMAIL:
+            print("✉️ Estruturando e-mail em HTML...")
+            msg = MIMEMultipart('alternative')
+            msg['From'] = EMAIL_REMETENTE
+            msg['To'] = ", ".join(EMAIL_DESTINATARIOS)
+            msg['Subject'] = "⚠️ Alteração de Status Detectada nos Protocolos"
+            
+            # Montagem em HTML com o título do Portal antes da listagem de processos
+            corpo_html = f"""
+            <html>
+            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333333;">
+                <p>Olá, Artesano!</p>
+                <p>O robô identificou que houve alteração de status nos seguintes processos ativos:</p>
+                
+                <div style="background-color: #f8f9fa; border-left: 4px solid #007bff; padding: 12px; margin-bottom: 20px;">
+                    <strong style="color: #007bff; font-size: 14px; letter-spacing: 0.5px;">🏢 PORTAL DE SANTANA DE PARNAÍBA</strong>
+                    <ul style="margin-top: 8px; padding-left: 20px;">
+            """
+            
+            for x in processos_alterados:
+                corpo_html += f"""
+                        <li style="margin-bottom: 12px;">
+                            <strong>Protocolo:</strong> <code style="background-color: #e9ecef; padding: 2px 6px; border-radius: 4px; font-size: 13px;">{x['protocolo']}</code><br>
+                            <span style="color: #dc3545;">🔴 Status Anterior:</span> {x['antigo']}<br>
+                            <span style="color: #28a745;">🟢 Novo Status Atualizado:</span> <strong>{x['novo']}</strong>
+                        </li>
+                """
+                
+            corpo_html += f"""
+                    </ul>
+                </div>
+                
+                <p>A planilha de monitoramento já foi atualizada automaticamente com as novas informações.</p>
+                <p>Para verificar os detalhes completos, acesse pelo link oficial abaixo:</p>
+                <p style="margin-top: 15px; margin-bottom: 20px;">
+                    <a href="{LINK_PLANILHA}" target="_blank" style="color: #007bff; font-weight: bold; text-decoration: underline; font-size: 15px;">🔗 monitor_protocolos</a>
+                </p>
+                <br>
+                <p style="font-size: 12px; color: #6c757d;">
+                    Atenciosamente,<br>
+                    <strong>Robô de Monitoramento de Protocolos</strong><br>
+                    Verificação efetuada em: {agora_str}
+                </p>
+            </body>
+            </html>
+            """
+            
+            msg.attach(MIMEText(corpo_html, 'html'))
+            
+            with smtplib.SMTP('smtp.gmail.com', 587) as server:
