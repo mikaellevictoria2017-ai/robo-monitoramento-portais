@@ -11,6 +11,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
+import subprocess
 
 # ==========================================
 # CONFIGURAÇÕES E CHAVES
@@ -198,14 +199,23 @@ for index, row in df.iterrows():
         df.at[index, col_modificado] = agora_str
 
 # ==========================================
-# 4. SALVAMENTO E ENVIO DO E-MAIL (MÉTODO HTML BLINDADO)
+# 4. SALVAMENTO AUTOMÁTICO NO GITHUB E ENVIO DO E-MAIL
 # ==========================================
 if processos_alterados:
     try:
         print("💾 Gravando atualizações na planilha de controle...")
         with pd.ExcelWriter(nome_planilha, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
             df.to_excel(writer, sheet_name=nome_aba, index=False)
-        print("📊 Planilha atualizada com sucesso.")
+        print("📊 Planilha atualizada localmente.")
+        
+        # --- BLOCO EXCLUSIVO: SALVAMENTO AUTÓNOMO NO GITHUB ---
+        print("🚀 Enviando alterações automaticamente para o repositório GitHub...")
+        subprocess.run(["git", "config", "user.name", "Automated Robot"], check=True)
+        subprocess.run(["git", "config", "user.email", "robot@artesano.com"], check=True)
+        subprocess.run(["git", "add", nome_planilha], check=True)
+        subprocess.run(["git", "commit", "-m", f"🤖 Atualização automática de status: {agora_str}"], check=True)
+        subprocess.run(["git", "push"], check=True)
+        print("✨ GitHub atualizado com sucesso de forma autónoma!")
         
         if SENHA_GMAIL:
             print("✉️ Estruturando e-mail em HTML...")
@@ -238,15 +248,15 @@ if processos_alterados:
                     </ul>
                 </div>
                 
-                <p>A planilha de monitoramento já foi updated automaticamente com as novas informações.</p>
-                <p>Para verificar os detalhes completos, acesse pelo link oficial abaixo:</p>
+                <p>A planilha de monitoramento já foi atualizada automaticamente com as novas informações.</p>
+                <p>Para verificar os detalhes completos, aceda pelo link oficial abaixo:</p>
                 <p style="margin-top: 15px; margin-bottom: 20px;">
                     <a href="{LINK_PLANILHA}" target="_blank" style="color: #007bff; font-weight: bold; text-decoration: underline; font-size: 15px;">🔗 monitor_protocolos</a>
                 </p>
                 <br>
                 <p style="font-size: 12px; color: #6c757d;">
                     Atenciosamente,<br>
-                    <strong>Robô de Monitoramento de Protocolos</strong><br>
+                    <strong>Robô de Monitoring de Protocolos</strong><br>
                     Verificação efetuada em: {agora_str}
                 </p>
             </body>
@@ -263,6 +273,6 @@ if processos_alterados:
         else:
             print("⚠️ Envio de e-mail cancelado: Variável 'SENHA_GMAIL' não configurada.")
     except Exception as e:
-        print(f"❌ Falha ao salvar arquivo Excel ou disparar e-mail: {e}")
+        print(f"❌ Falha ao salvar no GitHub ou disparar e-mail: {e}")
 else:
     print("🦥 Varredura finalizada. Nenhum processo sofreu modificações válidas hoje.")
