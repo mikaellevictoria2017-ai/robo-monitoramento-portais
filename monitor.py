@@ -200,7 +200,7 @@ for index, row in df.iterrows():
 # ==========================================
 # 4. SALVAMENTO E ENVIO DO E-MAIL (MÉTODO HTML BLINDADO)
 # ==========================================
-if procesos_alterados:
+if processos_alterados:
     try:
         print("💾 Gravando atualizações na planilha de controle...")
         with pd.ExcelWriter(nome_planilha, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
@@ -214,7 +214,6 @@ if procesos_alterados:
             msg['To'] = ", ".join(EMAIL_DESTINATARIOS)
             msg['Subject'] = "⚠️ Alteração de Status Detectada nos Protocolos"
             
-            # Montagem em HTML com o título do Portal antes da listagem de processos
             corpo_html = f"""
             <html>
             <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333333;">
@@ -239,7 +238,7 @@ if procesos_alterados:
                     </ul>
                 </div>
                 
-                <p>A planilha de monitoramento já foi atualizada automaticamente com as novas informações.</p>
+                <p>A planilha de monitoramento já foi updated automaticamente com as novas informações.</p>
                 <p>Para verificar os detalhes completos, acesse pelo link oficial abaixo:</p>
                 <p style="margin-top: 15px; margin-bottom: 20px;">
                     <a href="{LINK_PLANILHA}" target="_blank" style="color: #007bff; font-weight: bold; text-decoration: underline; font-size: 15px;">🔗 monitor_protocolos</a>
@@ -257,3 +256,13 @@ if procesos_alterados:
             msg.attach(MIMEText(corpo_html, 'html'))
             
             with smtplib.SMTP('smtp.gmail.com', 587) as server:
+                server.starttls()
+                server.login(EMAIL_REMETENTE, SENHA_GMAIL)
+                server.sendmail(EMAIL_REMETENTE, EMAIL_DESTINATARIOS, msg.as_string())
+            print("✉️ E-mail em HTML disparado com sucesso!")
+        else:
+            print("⚠️ Envio de e-mail cancelado: Variável 'SENHA_GMAIL' não configurada.")
+    except Exception as e:
+        print(f"❌ Falha ao salvar arquivo Excel ou disparar e-mail: {e}")
+else:
+    print("🦥 Varredura finalizada. Nenhum processo sofreu modificações válidas hoje.")
