@@ -20,12 +20,11 @@ from selenium.webdriver.common.action_chains import ActionChains
 EMAIL_REMETENTE = "mikaellevictoria2017@gmail.com"
 EMAIL_DESTINATARIOS = ["santos.micaelle2006@gmail.com"]
 
-# 🎯 INSIRA SEU LINK DO ONEDRIVE/SHAREPOINT AQUI DENTRO DAS ASPAS:
-LINK_PLANILHA_NUVEM = "https://artesanourbanismo-my.sharepoint.com/:x:/g/personal/mvitoria_artesanourbanismo_com_br/IQDgXvD3n6RTRZsZo63IiGBXAeSMCTvv1qBTTDNAD3d1_jE?e=ODW12H"
+# 🎯 O teu link do OneDrive/SharePoint que funcionou perfeitamente:
+LINK_PLANILHA_NUVEM = "https://artesanourbanismo-my.sharepoint.com/:x:/g/personal/mvitoria_artesanourbanismo_com_br/IQDgXvD3n6RTRZsZo63IiGBXAeSMCTvv1qBTTDNAD3d1_jE?e=hwzz8q"
 
 nome_aba = "Santana de Parnaíba"
 
-# Chaves de segurança guardadas no GitHub Secrets
 USER_PORTAL = os.getenv("USER_PORTAL", "")
 SENHA_PORTAL = os.getenv("SENHA_PORTAL", "")
 SENHA_GMAIL = os.getenv("SENHA_GMAIL", "")
@@ -34,10 +33,9 @@ agora_str = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
 print(f"===== INICIANDO MONITORAMENTO VIA LINK DIRECT: {agora_str} =====")
 
 # ==========================================
-# 1. LEITURA DA PLANILHA VIA REQUESTS (BURLANDO O 403)
+# 1. LEITURA DA PLANILHA VIA REQUESTS
 # ==========================================
 try:
-    # Ajusta o link para forçar o download do arquivo bruto se for link comum
     url_download = LINK_PLANILHA_NUVEM
     if "sharepoint.com" in url_download and "download=1" not in url_download:
         if "?" in url_download:
@@ -45,18 +43,15 @@ try:
         else:
             url_download += "?download=1"
 
-    # Cabeçalho para o site achar que é uma pessoa comum acessando
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
     
     print("📥 Baixando arquivo da nuvem...")
     resposta = requests.get(url_download, headers=headers)
-    resposta.raise_for_status() # Dispara erro caso não consiga acessar
+    resposta.raise_for_status()
     
-    # Carrega os bytes do arquivo baixado para o Pandas
     df = pd.read_excel(io.BytesIO(resposta.content), sheet_name=nome_aba)
-    
     colunas_originais = list(df.columns)
     df.columns = [str(c).strip().upper() for c in df.columns]
     print(f"📥 Planilha carregada com sucesso! Colunas: {list(df.columns)}")
@@ -152,3 +147,53 @@ for index, row in df.iterrows():
         processos_alterados.append({'protocolo': protocolo_planilha, 'antigo': status_antigo, 'novo': status_novo})
         
         df.at[index, col_status] = status_novo
+        df.at[index, col_acao] = status_novo
+        df.at[index, col_modificado] = agora_str
+
+df.columns = colunas_originais
+
+# ==========================================
+# 4. ENVIO DO E-MAIL DE ALERTA CORRIGIDO
+# ==========================================
+if processos_alterados:
+    if SENHA_GMAIL:
+        try:
+            msg = MIMEMultipart('alternative')
+            msg['From'] = EMAIL_REMETENTE
+            msg['To'] = ", ".join(EMAIL_DESTINATARIOS)
+            msg['Subject'] = "⚠️ Alerta: Status de Protocolo Atualizado!"
+            
+            # Montagem segura do bloco de texto sem quebra de aspas triplas
+            blocos = ""
+            for p in processos_alterados:
+                blocos += "<div style='border-left: 4px solid #0078d4; padding-left: 15px; margin-bottom: 20px;'>"
+                blocos += "<p style='margin: 5px 0; font-size: 16px; font-weight: bold; color: #333;'>🏢 PORTAL DE SANTANA DE PARNAÍBA</p>"
+                blocos += "<ul style='margin: 5px 0; padding-left: 20px; color: #555;'>"
+                blocos += f"<li><strong>Protocolo:</strong> {p['protocolo']}</li>"
+                blocos += f"<li><span style='color: #e81123;'>🔴 <strong>Anterior:</strong></span> {p['antigo']}</li>"
+                blocos += f"<li><span style='color: #107c41;'>🟢 <strong>Novo Status:</strong></span> <strong>{p['novo']}</strong></li>"
+                blocos += "</ul></div>"
+            
+            corpo_html = f"""
+            <html>
+            <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                <p>Olá, Artesano!</p>
+                <p>O robô identificou alterações de status nos seguintes processos:</p>
+                {blocos}
+                <p>👉 Aceda à planilha oficial para conferir: <a href="{LINK_PLANILHA_NUVEM}" style="color: #0078d4; font-weight: bold; text-decoration: none;">Abrir monitor_protocolos</a></p>
+                <hr style="border: 0; border-top: 1px solid #eaeaea; margin-top: 20px;">
+                <p style="font-size: 11px; color: #777;">Verificação efetuada automaticamente em: {agora_str}</p>
+            </body>
+            </html>
+            """
+            
+            msg.attach(MIMEText(corpo_html, 'html'))
+            with smtplib.SMTP('smtp.gmail.com', 587) as server:
+                server.starttls()
+                server.login(EMAIL_REMETENTE, SENHA_GMAIL)
+                server.sendmail(EMAIL_REMETENTE, EMAIL_DESTINATARIOS, msg.as_string())
+            print("✉️ E-mail com design enviado com sucesso!")
+        except Exception as e:
+            print(f"❌ Erro ao enviar e-mail: {e}")
+else:
+    print("🦥 Varredura finalizada. Nenhuma linha alterada hoje.")
