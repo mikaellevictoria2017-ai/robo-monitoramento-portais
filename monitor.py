@@ -133,7 +133,7 @@ for index, row in df.iterrows():
         df.at[index, col_modificado] = agora_str
         
         # Se houver mais informações na linha do site, jogamos na ÚLTIMA AÇÃO tudo junto ou separado
-        acao_nova = " | ".join(dados_novos[1:]) if len(dados_novos) > 1 else status_novo
+        acao_nova = ";".join(dados_novos[1:]) if len(dados_novos) > 1 else status_novo
         df.at[index, col_acao] = acao_nova
         
         status_antigo = str(row.get(col_status, "")).strip()
