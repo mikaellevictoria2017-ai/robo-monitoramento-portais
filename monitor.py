@@ -19,7 +19,7 @@ EMAIL_REMETENTE = "mikaellevictoria2017@gmail.com"
 EMAIL_DESTINATARIOS = ["santos.micaelle2006@gmail.com"]
 
 # 🎯 Substitua pelo link direto da sua planilha do SharePoint para o e-mail:
-LINK_PLANILHA = "COLE_AQUI_O_LINK_DA_SUA_PLANILHA_DO_SHAREPOINT"
+LINK_PLANILHA = "https://artesanourbanismo-my.sharepoint.com/:x:/g/personal/mvitoria_artesanourbanismo_com_br/IQDgXvD3n6RTRZsZo63IiGBXAeSMCTvv1qBTTDNAD3d1_jE?e=5WIK4X"
 
 nome_planilha = "monitor_protocolos.xlsx"
 nome_aba = "Santana de Parnaíba"
