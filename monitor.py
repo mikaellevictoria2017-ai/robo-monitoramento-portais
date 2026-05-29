@@ -20,7 +20,7 @@ EMAIL_REMETENTE = "mikaellevictoria2017@gmail.com"
 EMAIL_DESTINATARIOS = ["santos.micaelle2006@gmail.com"]
 
 # ⚠️ LEMBRE-SE DE COLOCAR O LINK DA SUA PLANILHA ENTRE AS ASPAS ABAIXO:
-LINK_PLANILHA = "https://artesanourbanismo-my.sharepoint.com/:x:/g/personal/mvitoria_artesanourbanismo_com_br/IQDgXvD3n6RTRZsZo63IiGBXAeSMCTvv1qBTTDNAD3d1_jE?e=PWsFlb"
+LINK_PLANILHA = "https://artesanourbanismo-my.sharepoint.com/:x:/g/personal/mvitoria_artesanourbanismo_com_br/IQDgXvD3n6RTRZsZo63IiGBXAeSMCTvv1qBTTDNAD3d1_jE?e=3dE6l6"
 
 nome_planilha = "monitor_protocolos.xlsx"
 nome_aba = "Santana de Parnaíba"
