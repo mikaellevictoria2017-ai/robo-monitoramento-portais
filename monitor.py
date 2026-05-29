@@ -134,12 +134,11 @@ for index, row in df.iterrows():
 df.columns = colunas_originais
 
 # ==========================================
-# 4. SALVAMENTO LOCAL (PRO GITHUB SALVAR)
+# 4. SALVAMENTO LOCAL EM CSV
 # ==========================================
 if processos_alterados:
-    print("💾 Gravando alterações locais na planilha...")
-    with pd.ExcelWriter(nome_planilha, engine='openpyxl') as writer:
-        df.to_excel(writer, sheet_name=nome_aba, index=False)
+    print("💾 Gravando alterações locais em CSV...")
+    df.to_csv("monitor_protocolos.csv", index=False, encoding="utf-8")
     
     if SENHA_GMAIL:
         try:
