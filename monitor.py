@@ -125,20 +125,16 @@ for index, row in df.iterrows():
             dados_novos = v  # Aqui recebemos a lista com todas as colunas separadas
             break
             
-   if dados_novos:
-        # Define status e data de modificação
+    if dados_novos:
         status_novo = dados_novos[0] if len(dados_novos) > 0 else "Sem status"
         df.at[index, col_status] = status_novo
         df.at[index, col_modificado] = agora_str
         
-        # Lógica robusta para separar as colunas sem falhar
         if len(dados_novos) > 1:
             detalhes = dados_novos[1:]
         else:
-            # Se não houver detalhes extras, usamos o status para preencher o slot
             detalhes = [status_novo, "Sem detalhes adicionais"]
-        
-        # Junta tudo usando o separador ¤
+            
         df.at[index, col_acao] = "¤".join(detalhes)
 # ==========================================
 # 4. SALVA O RELATÓRIO FINAL EM CSV NO GITHUB
