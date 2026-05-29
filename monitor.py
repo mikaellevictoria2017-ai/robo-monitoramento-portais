@@ -18,8 +18,8 @@ from selenium.webdriver.common.action_chains import ActionChains
 EMAIL_REMETENTE = "mikaellevictoria2017@gmail.com"
 EMAIL_DESTINATARIOS = ["santos.micaelle2006@gmail.com"]
 
-# 🎯 Coloca aqui o link direto da tua planilha oficial do SharePoint da Artesano:
-LINK_PLANILHA = "https://artesanourbanismo-my.sharepoint.com/:x:/g/personal/mvitoria_artesanourbanismo_com_br/IQDgXvD3n6RTRZsZo63IiGBXAeSMCTvv1qBTTDNAD3d1_jE?e=vVh6fa"
+# 🎯 Substitua pelo link direto da sua planilha do SharePoint para o e-mail:
+LINK_PLANILHA = "COLE_AQUI_O_LINK_DA_SUA_PLANILHA_DO_SHAREPOINT"
 
 nome_planilha = "monitor_protocolos.xlsx"
 nome_aba = "Santana de Parnaíba"
@@ -129,5 +129,55 @@ for index, row in df.iterrows():
         print(f"⚠️ MUDANÇA DETECTADA NO PROTOCOLO: {protocolo_planilha}")
         processos_alterados.append({'protocolo': protocolo_planilha, 'antigo': status_antigo, 'novo': status_novo})
         
-        # Limpa o texto antigo e escreve o novo de forma organizada
-        for col in df
+        # 🧹 Limpa o texto antigo de todas as colunas daquela linha antes de escrever
+        for col in df.columns:
+            df.at[index, col] = None
+            
+        # ✍️ Preenche as colunas com as novas informações
+        df.at[index, col_protocolo] = protocolo_planilha
+        df.at[index, col_status] = status_novo
+        df.at[index, col_modificado] = agora_str
+        if col_ativo:
+            df.at[index, col_ativo] = "SIM"
+
+# ==========================================
+# 4. SALVAMENTO AUTOMÁTICO NA PLANILHA
+# ==========================================
+if processos_alterados:
+    print("💾 Gravando alterações na planilha de monitoramento...")
+    with pd.ExcelWriter(nome_planilha, engine='openpyxl') as writer:
+        df.to_excel(writer, sheet_name=nome_aba, index=False)
+    
+    # Envia e-mail de alerta avisando que mudou
+    if SENHA_GMAIL:
+        try:
+            msg = MIMEMultipart('alternative')
+            msg['From'] = EMAIL_REMETENTE
+            msg['To'] = ", ".join(EMAIL_DESTINATARIOS)
+            msg['Subject'] = "⚠️ Alerta: Linha Alterada na Planilha Oficial!"
+            
+            linhas_tabela = "".join([f"<tr><td>{p['protocolo']}</td><td style='color:red;'>{p['antigo']}</td><td style='color:green;'>{p['novo']}</td></tr>" for p in processos_alterados])
+            
+            corpo_html = f"""
+            <html>
+            <body>
+                <h2>O robô detectou alterações de status e já preencheu a planilha!</h2>
+                <table border="1" cellpadding="5" style="border-collapse: collapse;">
+                    <tr bgcolor="#f2f2f2"><th>Protocolo</th><th>Status Antigo</th><th>Status Novo</th></tr>
+                    {linhas_tabela}
+                </table>
+                <br>
+                <p>👉 Acesse a sua planilha oficial aqui: <a href="{LINK_PLANILHA}">Abrir Planilha SharePoint</a></p>
+            </body>
+            </html>
+            """
+            msg.attach(MIMEText(corpo_html, 'html'))
+            with smtplib.SMTP('smtp.gmail.com', 587) as server:
+                server.starttls()
+                server.login(EMAIL_REMETENTE, SENHA_GMAIL)
+                server.sendmail(EMAIL_REMETENTE, EMAIL_DESTINATARIOS, msg.as_string())
+            print("✉️ E-mail de alerta enviado!")
+        except Exception as e:
+            print(f"❌ Erro ao enviar e-mail: {e}")
+else:
+    print("🦥 Varredura finalizada. Nenhuma linha precisou ser alterada hoje.")
