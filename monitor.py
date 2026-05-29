@@ -91,7 +91,7 @@ try:
     
     linhas = driver.find_elements(By.XPATH, "//tbody/tr | //tr | //div[contains(@class, 'linha')]")
     
-    for linha in lines:
+    for linha in linhas:
         texto_linha = linha.text.strip()
         if texto_linha:
             partes = [p.strip() for p in texto_linha.split("\n") if p.strip()]
