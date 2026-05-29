@@ -98,8 +98,9 @@ try:
             if len(partes) >= 2:
                 protocolo_web = partes[0].upper()
                 if any(char.isdigit() for char in protocolo_web):
-                    status_completo = " | ".join(partes[1:])
-                    dados_portal[protocolo_web] = status_completo
+                    # Se o site trouxe várias informações na linha, separamos por colunas
+                    # Ex: partes[1] vai para uma coluna, partes[2] para outra...
+                    dados_portal[protocolo_web] = partes[1:]
 
     print(f"✅ Extraídos {len(dados_portal)} registros completos do site.")
 except Exception as e:
@@ -117,24 +118,28 @@ for index, row in df.iterrows():
         continue
         
     protocolo_planilha = str(row[col_protocolo]).strip().upper()
-    status_antigo = str(row.get(col_status, "")).strip()
     
-    status_novo = None
+    dados_novos = None
     for k, v in dados_portal.items():
         if protocolo_planilha in k or k in protocolo_planilha:
-            status_novo = v
+            dados_novos = v  # Aqui recebemos a lista com todas as colunas separadas
             break
             
-    if status_novo:
+    if dados_novos:
+        # Distribui os dados do site nas colunas da planilha de forma organizada
+        # Se houver pelo menos 1 informação além do protocolo, colocamos no STATUS ATUAL
+        status_novo = dados_novos[0] if len(dados_novos) > 0 else "Sem status"
         df.at[index, col_status] = status_novo
-        df.at[index, col_acao] = status_novo
         df.at[index, col_modificado] = agora_str
         
+        # Se houver mais informações na linha do site, jogamos na ÚLTIMA AÇÃO tudo junto ou separado
+        acao_nova = " | ".join(dados_novos[1:]) if len(dados_novos) > 1 else status_novo
+        df.at[index, col_acao] = acao_nova
+        
+        status_antigo = str(row.get(col_status, "")).strip()
         if status_antigo != status_novo and "Aguardando" not in status_antigo:
             print(f"⚠️ MUDANÇA DETECTADA NO PROTOCOLO: {protocolo_planilha}")
             processos_alterados.append({'protocolo': protocolo_planilha, 'antigo': status_antigo, 'novo': status_novo})
-
-df.columns = colunas_originais + [c for c in ["STATUS ATUAL", "ÚLTIMA AÇÃO", "MODIFICADO EM"] if c.upper() not in [o.upper() for o in colunas_originais]]
 
 # ==========================================
 # 4. SALVA O RELATÓRIO FINAL EM CSV NO GITHUB
