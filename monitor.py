@@ -41,24 +41,20 @@ try:
     print(f"📥 Dados do formulário carregados! Colunas: {list(df.columns)}")
     
     col_protocolo = [c for c in df.columns if "PROTOCOLO" in c or "NUMER" in c or "PROCESSO" in c][0]
-    col_ativo = [c for c in df.columns if "ATIVO" in c][0] if any("ATIVO" in c for c in df.columns) else None
+    linhas = driver.find_elements(By.XPATH, "//tbody/tr | //tr | //div[contains(@class, 'linha')]")
     
-    # Criamos as colunas de controle do robô caso elas não existam no formulário
-    if "STATUS ATUAL" not in df.columns:
-        df["STATUS ATUAL"] = "Aguardando primeira checagem..."
-    if "ÚLTIMA AÇÃO" not in df.columns:
-        df["ÚLTIMA AÇÃO"] = "Nenhuma"
-    if "MODIFICADO EM" not in df.columns:
-        df["MODIFICADO EM"] = agora_str
-        
-    col_status = "STATUS ATUAL"
-    col_acao = "ÚLTIMA AÇÃO"
-    col_modificado = "MODIFICADO EM"
+    for linha in linhas:
+        texto_linha = linha.text.strip()
+        if texto_linha:
+            partes = [p.strip() for p in texto_linha.split("\n") if p.strip()]
+            if len(partes) >= 2:
+                protocolo_web = partes[0].upper()
+                if any(char.isdigit() for char in protocolo_web):
+                    # Junta todas as informações da linha separadas por uma barra vertical
+                    status_completo = " | ".join(partes[1:])
+                    dados_portal[protocolo_web] = status_completo
 
-    protocolos_verificar = df[col_protocolo].dropna().astype(str).tolist()
-    print(f"🔍 Protocolos localizados para checagem: {protocolos_verificar}")
-
-except Exception as e:
+    print(f"✅ Extraídos {len(dados_portal)} registros completos do site.")
     print(f"❌ Erro ao ler os dados de entrada do Google Forms: {e}")
     exit(1)
 
