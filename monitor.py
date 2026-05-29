@@ -1,7 +1,5 @@
 import os
 import time
-import io
-import requests
 import pandas as pd
 from datetime import datetime
 import smtplib
@@ -20,9 +18,7 @@ from selenium.webdriver.common.action_chains import ActionChains
 EMAIL_REMETENTE = "mikaellevictoria2017@gmail.com"
 EMAIL_DESTINATARIOS = ["santos.micaelle2006@gmail.com"]
 
-# 🎯 O teu link do OneDrive/SharePoint que funcionou perfeitamente:
-LINK_PLANILHA_NUVEM = "https://artesanourbanismo-my.sharepoint.com/:x:/g/personal/mvitoria_artesanourbanismo_com_br/IQDgXvD3n6RTRZsZo63IiGBXAeSMCTvv1qBTTDNAD3d1_jE?e=hwzz8q"
-
+nome_planilha = "monitor_protocolos.xlsx"
 nome_aba = "Santana de Parnaíba"
 
 USER_PORTAL = os.getenv("USER_PORTAL", "")
@@ -30,31 +26,16 @@ SENHA_PORTAL = os.getenv("SENHA_PORTAL", "")
 SENHA_GMAIL = os.getenv("SENHA_GMAIL", "")
 
 agora_str = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-print(f"===== INICIANDO MONITORAMENTO VIA LINK DIRECT: {agora_str} =====")
+print(f"===== INICIANDO MONITORAMENTO HÍBRIDO GITHUB/SHEETS: {agora_str} =====")
 
 # ==========================================
-# 1. LEITURA DA PLANILHA VIA REQUESTS
+# 1. LEITURA DA PLANILHA NO REPOSITÓRIO
 # ==========================================
 try:
-    url_download = LINK_PLANILHA_NUVEM
-    if "sharepoint.com" in url_download and "download=1" not in url_download:
-        if "?" in url_download:
-            url_download += "&download=1"
-        else:
-            url_download += "?download=1"
-
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    }
-    
-    print("📥 Baixando arquivo da nuvem...")
-    resposta = requests.get(url_download, headers=headers)
-    resposta.raise_for_status()
-    
-    df = pd.read_excel(io.BytesIO(resposta.content), sheet_name=nome_aba)
+    df = pd.read_excel(nome_planilha, sheet_name=nome_aba)
     colunas_originais = list(df.columns)
     df.columns = [str(c).strip().upper() for c in df.columns]
-    print(f"📥 Planilha carregada com sucesso! Colunas: {list(df.columns)}")
+    print(f"📥 Planilha carregada! Colunas encontradas: {list(df.columns)}")
     
     col_protocolo = [c for c in df.columns if "PROTOCOLO" in c or "NUMER" in c or "PROCESSO" in c][0]
     col_ativo = [c for c in df.columns if "ATIVO" in c][0] if any("ATIVO" in c for c in df.columns) else None
@@ -63,14 +44,14 @@ try:
     col_acao = [c for c in df.columns if "AÇÃO" in c or "ACAO" in c][0] if any("AÇÃO" in c for c in df.columns) else "ÚLTIMA AÇÃO"
 
     protocolos_verificar = df[col_protocolo].dropna().astype(str).tolist()
-    print(f"🔍 Protocolos localizados para checagem: {protocolos_verificar}")
+    print(f"🔍 Protocolos localizados: {protocolos_verificar}")
 
 except Exception as e:
-    print(f"❌ Erro ao ler a planilha direto do link: {e}")
+    print(f"❌ Erro ao ler a planilha: {e}")
     exit(1)
 
 # ==========================================
-# 2. RASPAGEM DOS DADOS NO PORTAL
+# 2. AUTOMAÇÃO NO PORTAL DA PREFEITURA
 # ==========================================
 dados_portal = {}
 options = Options()
@@ -120,12 +101,12 @@ try:
 
     print(f"✅ Extraídos {len(dados_portal)} registros do site.")
 except Exception as e:
-    print(f"❌ Falha na automação do portal: {e}")
+    print(f"❌ Falha na automação: {e}")
 finally:
     driver.quit()
 
 # ==========================================
-# 3. ATUALIZAÇÃO RESTRITA DA PLANILHA
+# 3. ATUALIZAÇÃO CIRÚRGICA DE 3 COLUNAS
 # ==========================================
 processos_alterados = []
 
@@ -153,9 +134,13 @@ for index, row in df.iterrows():
 df.columns = colunas_originais
 
 # ==========================================
-# 4. ENVIO DO E-MAIL DE ALERTA CORRIGIDO
+# 4. SALVAMENTO LOCAL (PRO GITHUB SALVAR)
 # ==========================================
 if processos_alterados:
+    print("💾 Gravando alterações locais na planilha...")
+    with pd.ExcelWriter(nome_planilha, engine='openpyxl') as writer:
+        df.to_excel(writer, sheet_name=nome_aba, index=False)
+    
     if SENHA_GMAIL:
         try:
             msg = MIMEMultipart('alternative')
@@ -163,36 +148,17 @@ if processos_alterados:
             msg['To'] = ", ".join(EMAIL_DESTINATARIOS)
             msg['Subject'] = "⚠️ Alerta: Status de Protocolo Atualizado!"
             
-            # Montagem segura do bloco de texto sem quebra de aspas triplas
             blocos = ""
             for p in processos_alterados:
-                blocos += "<div style='border-left: 4px solid #0078d4; padding-left: 15px; margin-bottom: 20px;'>"
-                blocos += "<p style='margin: 5px 0; font-size: 16px; font-weight: bold; color: #333;'>🏢 PORTAL DE SANTANA DE PARNAÍBA</p>"
-                blocos += "<ul style='margin: 5px 0; padding-left: 20px; color: #555;'>"
-                blocos += f"<li><strong>Protocolo:</strong> {p['protocolo']}</li>"
-                blocos += f"<li><span style='color: #e81123;'>🔴 <strong>Anterior:</strong></span> {p['antigo']}</li>"
-                blocos += f"<li><span style='color: #107c41;'>🟢 <strong>Novo Status:</strong></span> <strong>{p['novo']}</strong></li>"
-                blocos += "</ul></div>"
+                blocos += f"<li><strong>Protocolo:</strong> {p['protocolo']} | <strong>Novo Status:</strong> {p['novo']}</li>"
             
-            corpo_html = f"""
-            <html>
-            <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                <p>Olá, Artesano!</p>
-                <p>O robô identificou alterações de status nos seguintes processos:</p>
-                {blocos}
-                <p>👉 Aceda à planilha oficial para conferir: <a href="{LINK_PLANILHA_NUVEM}" style="color: #0078d4; font-weight: bold; text-decoration: none;">Abrir monitor_protocolos</a></p>
-                <hr style="border: 0; border-top: 1px solid #eaeaea; margin-top: 20px;">
-                <p style="font-size: 11px; color: #777;">Verificação efetuada automaticamente em: {agora_str}</p>
-            </body>
-            </html>
-            """
-            
+            corpo_html = f"<html><body><p>Olá! A planilha foi atualizada no GitHub com novos status:</p><ul>{blocos}</ul></body></html>"
             msg.attach(MIMEText(corpo_html, 'html'))
             with smtplib.SMTP('smtp.gmail.com', 587) as server:
                 server.starttls()
                 server.login(EMAIL_REMETENTE, SENHA_GMAIL)
                 server.sendmail(EMAIL_REMETENTE, EMAIL_DESTINATARIOS, msg.as_string())
-            print("✉️ E-mail com design enviado com sucesso!")
+            print("✉️ E-mail enviado com sucesso!")
         except Exception as e:
             print(f"❌ Erro ao enviar e-mail: {e}")
 else:
