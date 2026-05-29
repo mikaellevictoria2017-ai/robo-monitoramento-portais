@@ -172,36 +172,58 @@ finally:
     driver.quit()
 
 # ==========================================
-# 3. COMPARAÇÃO E SUBSTITUIÇÃO DA LINHA TODA
+# 3. COMPARAÇÃO E ATUALIZAÇÃO TOTAL DA LINHA
 # ==========================================
 processos_alterados = []
 
-print(f"⚖️ Iniciando análise de reescrita de linhas...")
+print("⚖️ Iniciando análise de atualização total das linhas...")
+
 for index, row in df.iterrows():
+
+    # ignora linhas não ativas
     if col_ativo and str(row.get(col_ativo, "")).strip().upper() != "SIM":
         continue
-        
+
     protocolo_planilha = str(row[col_protocolo]).strip().upper()
     status_antigo = str(row.get(col_status, "")).strip()
-    
+
     status_novo = None
+
+    # procura protocolo vindo do portal
     for k, v in dados_portal.items():
-        if protocolo_planilha in k or k in protocolo_planilha:
-            status_novo = v
+
+        if protocolo_planilha == k:
+
+            status_novo = str(v).strip()
             break
-            
-    if status_novo and status_antigo != status_novo:
-        print(f"⚠️ MUDANÇA TOTAL NA LINHA: {protocolo_planilha} de '{status_antigo}' -> '{status_novo}'")
-        processos_alterados.append({'protocolo': protocolo_planilha, 'antigo': status_antigo, 'novo': status_novo})
-        
-        # ⚡ OPÇÃO 2: Limpa a linha inteira da planilha e redefine apenas os dados essenciais novos
+
+    # se mudou status
+    if status_novo and status_novo.upper() != status_antigo.upper():
+
+        print(f"⚠️ ALTERAÇÃO DETECTADA:")
+        print(f"📄 Protocolo: {protocolo_planilha}")
+        print(f"📌 Antigo: {status_antigo}")
+        print(f"✅ Novo: {status_novo}")
+
+        processos_alterados.append({
+            'protocolo': protocolo_planilha,
+            'antigo': status_antigo,
+            'novo': status_novo
+        })
+
+        # ==========================================
+        # LIMPA TODA A LINHA
+        # ==========================================
         for col in df.columns:
-            df.at[index, col] = None # Limpa o conteúdo antigo da linha toda
-            
-        # Preenche os dados novos limpos do portal
+            df.at[index, col] = ""
+
+        # ==========================================
+        # REESCREVE A LINHA COMPLETA
+        # ==========================================
         df.at[index, col_protocolo] = protocolo_planilha
         df.at[index, col_status] = status_novo
         df.at[index, col_modificado] = agora_str
+
         if col_ativo:
             df.at[index, col_ativo] = "SIM"
 
