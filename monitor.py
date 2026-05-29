@@ -18,36 +18,48 @@ from selenium.webdriver.common.action_chains import ActionChains
 EMAIL_REMETENTE = "mikaellevictoria2017@gmail.com"
 EMAIL_DESTINATARIOS = ["santos.micaelle2006@gmail.com"]
 
-nome_planilha = "monitor_protocolos.xlsx"
-nome_aba = "Santana de Parnaíba"
+# 🎯 COLE AQUI O LINK LONGO DO GOOGLE FORMS QUE VOCÊ COPIOU (Aquele do Publicar na Web como .csv):
 LINK_ENTRADA_GOOGLE_FORMS = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRh-7SIMziaShR1rqLpSnBabRJAIceLSZ6dO0zklOcOg_twfc9G6cwdRGQk1vL2y6lniAmH0mSh6Xw1/pub?gid=1314499551&single=true&output=csv"
+
 USER_PORTAL = os.getenv("USER_PORTAL", "")
 SENHA_PORTAL = os.getenv("SENHA_PORTAL", "")
 SENHA_GMAIL = os.getenv("SENHA_GMAIL", "")
 
 agora_str = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-print(f"===== INICIANDO MONITORAMENTO HÍBRIDO GITHUB/SHEETS: {agora_str} =====")
+print(f"===== INICIANDO MONITORAMENTO VIA GOOGLE FORMS: {agora_str} =====")
 
 # ==========================================
-# 1. LEITURA DA PLANILHA NO REPOSITÓRIO
+# 1. LEITURA DOS PROTOCOLOS CADASTRADOS NO FORMULÁRIO
 # ==========================================
 try:
-    df = pd.read_excel(nome_planilha, sheet_name=nome_aba)
+    # O robô baixa direto da nuvem a lista de protocolos do formulário
+    df = pd.read_csv(LINK_ENTRADA_GOOGLE_FORMS)
     colunas_originais = list(df.columns)
+    
+    # Padroniza as colunas em maiúsculo para busca interna
     df.columns = [str(c).strip().upper() for c in df.columns]
-    print(f"📥 Planilha carregada! Colunas encontradas: {list(df.columns)}")
+    print(f"📥 Dados do formulário carregados! Colunas: {list(df.columns)}")
     
     col_protocolo = [c for c in df.columns if "PROTOCOLO" in c or "NUMER" in c or "PROCESSO" in c][0]
     col_ativo = [c for c in df.columns if "ATIVO" in c][0] if any("ATIVO" in c for c in df.columns) else None
-    col_status = [c for c in df.columns if "STATUS" in c or "SITUA" in c][0] if any("STATUS" in c for c in df.columns) else "STATUS ATUAL"
-    col_modificado = [c for c in df.columns if "MODIF" in c or "DATA" in c][0] if any("MODIF" in c for c in df.columns) else "MODIFICADO EM"
-    col_acao = [c for c in df.columns if "AÇÃO" in c or "ACAO" in c][0] if any("AÇÃO" in c for c in df.columns) else "ÚLTIMA AÇÃO"
+    
+    # Criamos as colunas de controle do robô caso elas não existam no formulário
+    if "STATUS ATUAL" not in df.columns:
+        df["STATUS ATUAL"] = "Aguardando primeira checagem..."
+    if "ÚLTIMA AÇÃO" not in df.columns:
+        df["ÚLTIMA AÇÃO"] = "Nenhuma"
+    if "MODIFICADO EM" not in df.columns:
+        df["MODIFICADO EM"] = agora_str
+        
+    col_status = "STATUS ATUAL"
+    col_acao = "ÚLTIMA AÇÃO"
+    col_modificado = "MODIFICADO EM"
 
     protocolos_verificar = df[col_protocolo].dropna().astype(str).tolist()
-    print(f"🔍 Protocolos localizados: {protocolos_verificar}")
+    print(f"🔍 Protocolos localizados para checagem: {protocolos_verificar}")
 
 except Exception as e:
-    print(f"❌ Erro ao ler a planilha: {e}")
+    print(f"❌ Erro ao ler os dados de entrada do Google Forms: {e}")
     exit(1)
 
 # ==========================================
@@ -84,7 +96,7 @@ try:
     palavras_status = ['ANÁLISE', 'DEFERIDO', 'INDEFERIDO', 'COMUNIQUE-SE', 'AGUARDANDO', 'TRIAGEM', 'CONCLUÍDO', 'EMITIDO', 'CORREÇÃO', 'PENDENTE', 'PROCESSO']
     
     for linha in linhas:
-        texto_linha = linha.text.strip()
+        texto_linha = replace_texto = linha.text.strip()
         if texto_linha:
             partes = [p.strip() for p in texto_linha.split("\n") if p.strip()]
             if len(partes) >= 2:
@@ -106,7 +118,7 @@ finally:
     driver.quit()
 
 # ==========================================
-# 3. ATUALIZAÇÃO CIRÚRGICA DE 3 COLUNAS
+# 3. ATUALIZAÇÃO DA BASE DE DADOS
 # ==========================================
 processos_alterados = []
 
@@ -123,42 +135,43 @@ for index, row in df.iterrows():
             status_novo = v
             break
             
-    if status_novo and status_antigo != status_novo:
-        print(f"⚠️ MUDANÇA DETECTADA NO PROTOCOLO: {protocolo_planilha}")
-        processos_alterados.append({'protocolo': protocolo_planilha, 'antigo': status_antigo, 'novo': status_novo})
-        
+    if status_novo:
         df.at[index, col_status] = status_novo
         df.at[index, col_acao] = status_novo
         df.at[index, col_modificado] = agora_str
+        
+        if status_antigo != status_novo and "Aguardando" not in status_antigo:
+            print(f"⚠️ MUDANÇA DETECTADA NO PROTOCOLO: {protocolo_planilha}")
+            processos_alterados.append({'protocolo': protocolo_planilha, 'antigo': status_antigo, 'novo': status_novo})
 
-df.columns = colunas_originais
+# Devolve os nomes originais das colunas
+df.columns = colunas_originais + [c for c in ["STATUS ATUAL", "ÚLTIMA AÇÃO", "MODIFICADO EM"] if c.upper() not in [o.upper() for o in colunas_originais]]
 
 # ==========================================
-# 4. SALVAMENTO LOCAL EM CSV
+# 4. SALVA O RELATÓRIO FINAL EM CSV NO GITHUB
 # ==========================================
-if processos_alterados:
-    print("💾 Gravando alterações locais em CSV...")
-    df.to_csv("monitor_protocolos.csv", index=False, encoding="utf-8")
-    
-    if SENHA_GMAIL:
-        try:
-            msg = MIMEMultipart('alternative')
-            msg['From'] = EMAIL_REMETENTE
-            msg['To'] = ", ".join(EMAIL_DESTINATARIOS)
-            msg['Subject'] = "⚠️ Alerta: Status de Protocolo Atualizado!"
-            
-            blocos = ""
-            for p in processos_alterados:
-                blocos += f"<li><strong>Protocolo:</strong> {p['protocolo']} | <strong>Novo Status:</strong> {p['novo']}</li>"
-            
-            corpo_html = f"<html><body><p>Olá! A planilha foi atualizada no GitHub com novos status:</p><ul>{blocos}</ul></body></html>"
-            msg.attach(MIMEText(corpo_html, 'html'))
-            with smtplib.SMTP('smtp.gmail.com', 587) as server:
-                server.starttls()
-                server.login(EMAIL_REMETENTE, SENHA_GMAIL)
-                server.sendmail(EMAIL_REMETENTE, EMAIL_DESTINATARIOS, msg.as_string())
-            print("✉️ E-mail enviado com sucesso!")
-        except Exception as e:
-            print(f"❌ Erro ao enviar e-mail: {e}")
+print("💾 Gravando base de dados atualizada...")
+df.to_csv("monitor_protocolos.csv", index=False, encoding="utf-8")
+
+if processos_alterados and SENHA_GMAIL:
+    try:
+        msg = MIMEMultipart('alternative')
+        msg['From'] = EMAIL_REMETENTE
+        msg['To'] = ", ".join(EMAIL_DESTINATARIOS)
+        msg['Subject'] = "⚠️ Alerta: Status de Protocolo Atualizado!"
+        
+        blocos = ""
+        for p in processos_alterados:
+            blocos += f"<li><strong>Protocolo:</strong> {p['protocolo']} | <strong>Novo Status:</strong> {p['novo']}</li>"
+        
+        corpo_html = f"<html><body><p>Olá! O relatório foi atualizado com novos status:</p><ul>{blocos}</ul></body></html>"
+        msg.attach(MIMEText(corpo_html, 'html'))
+        with smtplib.SMTP('smtp.gmail.com', 587) as server:
+            server.starttls()
+            server.login(EMAIL_REMETENTE, SENHA_GMAIL)
+            server.sendmail(EMAIL_REMETENTE, EMAIL_DESTINATARIOS, msg.as_string())
+        print("✉️ E-mail enviado com sucesso!")
+    except Exception as e:
+        print(f"❌ Erro ao enviar e-mail: {e}")
 else:
-    print("🦥 Varredura finalizada. Nenhuma linha alterada hoje.")
+    print("🦥 Varredura finalizada.")
