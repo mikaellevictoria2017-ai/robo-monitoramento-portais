@@ -140,8 +140,9 @@ for index, row in df.iterrows():
 # 4. SALVA O RELATÓRIO FINAL EM CSV NO GITHUB
 # ==========================================
 print("💾 Gravando base de dados atualizada...")
-# Mude a linha do df.to_csv para exatamente isto:
-df.to_csv("monitor_protocolos.csv", index=False, sep="\t", encoding="utf-8")
+
+# Mantenha o código exatamente como está, apenas altere esta linha:
+df.to_html("monitor_protocolos.html", index=False)
 
 if processos_alterados and SENHA_GMAIL:
     try:
