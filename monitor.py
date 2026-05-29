@@ -18,7 +18,7 @@ from selenium.webdriver.common.action_chains import ActionChains
 EMAIL_REMETENTE = "mikaellevictoria2017@gmail.com"
 EMAIL_DESTINATARIOS = ["santos.micaelle2006@gmail.com"]
 
-# 🎯 COLE AQUI O LINK LONGO DO GOOGLE FORMS QUE VOCÊ COPIOU (Aquele do Publicar na Web como .csv):
+# 🎯 COLE AQUI O LINK LONGO DO GOOGLE FORMS QUE VOCÊ COPIOU:
 LINK_ENTRADA_GOOGLE_FORMS = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRh-7SIMziaShR1rqLpSnBabRJAIceLSZ6dO0zklOcOg_twfc9G6cwdRGQk1vL2y6lniAmH0mSh6Xw1/pub?gid=1314499551&single=true&output=csv"
 
 USER_PORTAL = os.getenv("USER_PORTAL", "")
@@ -32,29 +32,30 @@ print(f"===== INICIANDO MONITORAMENTO VIA GOOGLE FORMS: {agora_str} =====")
 # 1. LEITURA DOS PROTOCOLOS CADASTRADOS NO FORMULÁRIO
 # ==========================================
 try:
-    # O robô baixa direto da nuvem a lista de protocolos do formulário
     df = pd.read_csv(LINK_ENTRADA_GOOGLE_FORMS)
     colunas_originais = list(df.columns)
     
-    # Padroniza as colunas em maiúsculo para busca interna
     df.columns = [str(c).strip().upper() for c in df.columns]
     print(f"📥 Dados do formulário carregados! Colunas: {list(df.columns)}")
     
     col_protocolo = [c for c in df.columns if "PROTOCOLO" in c or "NUMER" in c or "PROCESSO" in c][0]
-    linhas = driver.find_elements(By.XPATH, "//tbody/tr | //tr | //div[contains(@class, 'linha')]")
+    col_ativo = [c for c in df.columns if "ATIVO" in c][0] if any("ATIVO" in c for c in df.columns) else None
     
-    for linha in linhas:
-        texto_linha = linha.text.strip()
-        if texto_linha:
-            partes = [p.strip() for p in texto_linha.split("\n") if p.strip()]
-            if len(partes) >= 2:
-                protocolo_web = partes[0].upper()
-                if any(char.isdigit() for char in protocolo_web):
-                    # Junta todas as informações da linha separadas por uma barra vertical
-                    status_completo = " | ".join(partes[1:])
-                    dados_portal[protocolo_web] = status_completo
+    if "STATUS ATUAL" not in df.columns:
+        df["STATUS ATUAL"] = "Aguardando primeira checagem..."
+    if "ÚLTIMA AÇÃO" not in df.columns:
+        df["ÚLTIMA AÇÃO"] = "Nenhuma"
+    if "MODIFICADO EM" not in df.columns:
+        df["MODIFICADO EM"] = agora_str
+        
+    col_status = "STATUS ATUAL"
+    col_acao = "ÚLTIMA AÇÃO"
+    col_modificado = "MODIFICADO EM"
 
-    print(f"✅ Extraídos {len(dados_portal)} registros completos do site.")
+    protocolos_verificar = df[col_protocolo].dropna().astype(str).tolist()
+    print(f"🔍 Protocolos localizados para checagem: {protocolos_verificar}")
+
+except Exception as e:
     print(f"❌ Erro ao ler os dados de entrada do Google Forms: {e}")
     exit(1)
 
@@ -89,25 +90,18 @@ try:
     time.sleep(10)
     
     linhas = driver.find_elements(By.XPATH, "//tbody/tr | //tr | //div[contains(@class, 'linha')]")
-    palavras_status = ['ANÁLISE', 'DEFERIDO', 'INDEFERIDO', 'COMUNIQUE-SE', 'AGUARDANDO', 'TRIAGEM', 'CONCLUÍDO', 'EMITIDO', 'CORREÇÃO', 'PENDENTE', 'PROCESSO']
     
-    for linha in linhas:
-        texto_linha = replace_texto = linha.text.strip()
+    for linha in lines:
+        texto_linha = linha.text.strip()
         if texto_linha:
             partes = [p.strip() for p in texto_linha.split("\n") if p.strip()]
             if len(partes) >= 2:
                 protocolo_web = partes[0].upper()
                 if any(char.isdigit() for char in protocolo_web):
-                    status_web = ""
-                    for parte in reversed(partes[1:]):
-                        if any(termo in parte.upper() for termo in palavras_status):
-                            status_web = parte
-                            break
-                    if not status_web:
-                        status_web = partes[-1]
-                    dados_portal[protocolo_web] = status_web
+                    status_completo = " | ".join(partes[1:])
+                    dados_portal[protocolo_web] = status_completo
 
-    print(f"✅ Extraídos {len(dados_portal)} registros do site.")
+    print(f"✅ Extraídos {len(dados_portal)} registros completos do site.")
 except Exception as e:
     print(f"❌ Falha na automação: {e}")
 finally:
@@ -140,7 +134,6 @@ for index, row in df.iterrows():
             print(f"⚠️ MUDANÇA DETECTADA NO PROTOCOLO: {protocolo_planilha}")
             processos_alterados.append({'protocolo': protocolo_planilha, 'antigo': status_antigo, 'novo': status_novo})
 
-# Devolve os nomes originais das colunas
 df.columns = colunas_originais + [c for c in ["STATUS ATUAL", "ÚLTIMA AÇÃO", "MODIFICADO EM"] if c.upper() not in [o.upper() for o in colunas_originais]]
 
 # ==========================================
