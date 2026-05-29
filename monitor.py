@@ -1,5 +1,7 @@
 import os
 import time
+import io
+import requests
 import pandas as pd
 from datetime import datetime
 import smtplib
@@ -18,8 +20,8 @@ from selenium.webdriver.common.action_chains import ActionChains
 EMAIL_REMETENTE = "mikaellevictoria2017@gmail.com"
 EMAIL_DESTINATARIOS = ["santos.micaelle2006@gmail.com"]
 
-# 🎯 COLE AQUI O LINK DE COMPARTILHAMENTO DA SUA PLANILHA DO ONEDRIVE/SHAREPOINT:
-LINK_ONEDRIVE = "https://artesanourbanismo-my.sharepoint.com/:x:/g/personal/mvitoria_artesanourbanismo_com_br/IQDgXvD3n6RTRZsZo63IiGBXAeSMCTvv1qBTTDNAD3d1_jE?e=nKEi50"
+# 🎯 INSIRA SEU LINK DO ONEDRIVE/SHAREPOINT AQUI DENTRO DAS ASPAS:
+LINK_PLANILHA_NUVEM = "https://artesanourbanismo-my.sharepoint.com/:x:/g/personal/mvitoria_artesanourbanismo_com_br/IQDgXvD3n6RTRZsZo63IiGBXAeSMCTvv1qBTTDNAD3d1_jE?e=ODW12H"
 
 nome_aba = "Santana de Parnaíba"
 
@@ -32,14 +34,30 @@ agora_str = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
 print(f"===== INICIANDO MONITORAMENTO VIA LINK DIRECT: {agora_str} =====")
 
 # ==========================================
-# 1. LEITURA DA PLANILHA DIRETO DO ONEDRIVE
+# 1. LEITURA DA PLANILHA VIA REQUESTS (BURLANDO O 403)
 # ==========================================
 try:
-    # O pandas consegue ler links diretos do OneDrive se estiverem públicos para visualização
-    df = pd.read_excel(LINK_ONEDRIVE, sheet_name=nome_aba)
-    colunas_originais = list(df.columns)
+    # Ajusta o link para forçar o download do arquivo bruto se for link comum
+    url_download = LINK_PLANILHA_NUVEM
+    if "sharepoint.com" in url_download and "download=1" not in url_download:
+        if "?" in url_download:
+            url_download += "&download=1"
+        else:
+            url_download += "?download=1"
+
+    # Cabeçalho para o site achar que é uma pessoa comum acessando
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
     
-    # Padroniza temporariamente para busca interna do robô
+    print("📥 Baixando arquivo da nuvem...")
+    resposta = requests.get(url_download, headers=headers)
+    resposta.raise_for_status() # Dispara erro caso não consiga acessar
+    
+    # Carrega os bytes do arquivo baixado para o Pandas
+    df = pd.read_excel(io.BytesIO(resposta.content), sheet_name=nome_aba)
+    
+    colunas_originais = list(df.columns)
     df.columns = [str(c).strip().upper() for c in df.columns]
     print(f"📥 Planilha carregada com sucesso! Colunas: {list(df.columns)}")
     
@@ -133,57 +151,4 @@ for index, row in df.iterrows():
         print(f"⚠️ MUDANÇA DETECTADA NO PROTOCOLO: {protocolo_planilha}")
         processos_alterados.append({'protocolo': protocolo_planilha, 'antigo': status_antigo, 'novo': status_novo})
         
-        # Altera pontualmente apenas o que varia, mantendo o restante da linha intacto
         df.at[index, col_status] = status_novo
-        df.at[index, col_acao] = status_novo
-        df.at[index, col_modificado] = agora_str
-
-# Devolve as colunas para a grafia original (maiúsculas/minúsculas da planilha)
-df.columns = colunas_originais
-
-# ==========================================
-# 4. GRAVAÇÃO DOS DADOS E ALERTA SIMPLES
-# ==========================================
-if processos_alterados:
-    print("💾 Gravando alterações de volta no OneDrive...")
-    # Salva diretamente no link do OneDrive usando o pandas
-    try:
-        with pd.ExcelWriter(LINK_ONEDRIVE, engine='openpyxl') as writer:
-            df.to_excel(writer, sheet_name=nome_aba, index=False)
-        print("✅ Arquivo atualizado com sucesso no OneDrive!")
-    except Exception as e:
-        print(f"❌ Erro ao salvar o arquivo de volta no OneDrive: {e}")
-        print("DICA: Verifique se o link possui permissão de EDIÇÃO e se o arquivo não está aberto por alguém.")
-    
-    if SENHA_GMAIL:
-        try:
-            msg = MIMEMultipart('alternative')
-            msg['From'] = EMAIL_REMETENTE
-            msg['To'] = ", ".join(EMAIL_DESTINATARIOS)
-            msg['Subject'] = "⚠️ Alerta: Linha Alterada na Planilha Oficial!"
-            
-            linhas_tabela = "".join([f"<tr><td>{p['protocolo']}</td><td>{p['antigo']}</td><td>{p['novo']}</td></tr>" for p in processos_alterados])
-            
-            corpo_html = f"""
-            <html>
-            <body>
-                <h2>Alteração detectada e registrada com sucesso!</h2>
-                <table border="1" cellpadding="5" style="border-collapse: collapse;">
-                    <tr bgcolor="#f2f2f2"><th>Protocolo</th><th>Status Antigo</th><th>Status Novo</th></tr>
-                    {linhas_tabela}
-                </table>
-                <br>
-                <p>👉 Link para acessar a planilha: <a href="{LINK_ONEDRIVE}">Abrir Planilha no OneDrive</a></p>
-            </body>
-            </html>
-            """
-            msg.attach(MIMEText(corpo_html, 'html'))
-            with smtplib.SMTP('smtp.gmail.com', 587) as server:
-                server.starttls()
-                server.login(EMAIL_REMETENTE, SENHA_GMAIL)
-                server.sendmail(EMAIL_REMETENTE, EMAIL_DESTINATARIOS, msg.as_string())
-            print("✉️ E-mail de alerta enviado!")
-        except Exception as e:
-            print(f"❌ Erro ao enviar e-mail: {e}")
-else:
-    print("🦥 Varredura finalizada. Nenhuma linha precisou ser alterada hoje.")
