@@ -18,7 +18,9 @@ import subprocess
 # ==========================================
 EMAIL_REMETENTE = "mikaellevictoria2017@gmail.com"
 EMAIL_DESTINATARIOS = ["santos.micaelle2006@gmail.com"]
-LINK_PLANILHA = 
+
+# ⚠️ LEMBRE-SE DE COLOCAR O LINK DA SUA PLANILHA ENTRE AS ASPAS ABAIXO:
+LINK_PLANILHA = "https://artesanourbanismo-my.sharepoint.com/:x:/g/personal/mvitoria_artesanourbanismo_com_br/IQDgXvD3n6RTRZsZo63IiGBXAeSMCTvv1qBTTDNAD3d1_jE?e=PWsFlb"
 
 nome_planilha = "monitor_protocolos.xlsx"
 nome_aba = "Santana de Parnaíba"
@@ -28,7 +30,7 @@ SENHA_PORTAL = os.getenv("SENHA_PORTAL", "")
 SENHA_GMAIL = os.getenv("SENHA_GMAIL", "")
 
 agora_str = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-print(f"===== INICIANDO MONITORAMENTO DESBLOQUEADOR DE FILTROS: {agora_str} =====")
+print(f"===== INICIANDO MONITORAMENTO REESCRITA TOTAL: {agora_str} =====")
 
 # ==========================================
 # 1. LEITURA DA PLANILHA (MÉTODO BLINDADO)
@@ -49,7 +51,7 @@ try:
     col_status = [c for c in df.columns if "STATUS" in c or "SITUA" in c][0] if any("STATUS" in c or "SITUA" in c for c in df.columns) else "STATUS ATUAL"
     col_modificado = [c for c in df.columns if "MODIF" in c or "DATA" in c][0] if any("MODIF" in c or "DATA" in c for c in df.columns) else "MODIFICADO EM"
 
-    print(f"🎯 Colunas mapeadas -> Protocolo: [{col_protocolo}] | Ativo: [{col_ativo}] | Status: [{col_status}]")
+    print(f"🎯 Colunas mapeadas -> Protocolo: [{col_protocolo}] | Status: [{col_status}]")
     lista_protocolos_planilha = df[col_protocolo].dropna().astype(str).str.strip().str.upper().tolist()
     print(f"📋 Protocolos localizados na sua planilha: {lista_protocolos_planilha}")
 
@@ -61,7 +63,6 @@ except Exception as e:
 # 2. AUTOMAÇÃO WEB
 # ==========================================
 dados_portal = {}
-
 options = Options()
 options.add_argument("--headless=new") 
 options.add_argument("--no-sandbox")
@@ -108,7 +109,7 @@ try:
     else:
         raise Exception("Não foi possível renderizar os campos de entrada.")
         
-    print("⏳ Aguardando validação dos cookies...")
+    print("⏳ Aguardando validação...")
     time.sleep(15)
     
     print("📂 Navegando para a URL interna de processos...")
@@ -116,15 +117,14 @@ try:
     time.sleep(10)
     
     try:
-        print("🧹 Detetado botão de filtros ativos. Tentando clicar em 'Limpar filtros'...")
+        print("🧹 Detectado botão de filtros ativos. Limpando...")
         botao_limpar = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(., 'Limpar filtros')] | //a[contains(., 'Limpar filtros')]")))
         actions.move_to_element(botao_limpar).click().perform()
-        print("✨ Filtros limpos com sucesso! Aguardando recarregamento da tabela completa...")
         time.sleep(10)
-    except Exception as f_err:
-        print(f"ℹ️ Botão 'Limpar filtros' não precisou ser acionado ou não foi encontrado.")
+    except Exception:
+        print(f"ℹ️ Filtros limpos ou não encontrados.")
 
-    print("📜 Rolando a página para garantir a renderização...")
+    print("📜 Rolando a página...")
     driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
     time.sleep(3)
     driver.execute_script("window.scrollTo(0, 0);")
@@ -139,7 +139,7 @@ try:
         'PROCESSO', 'VALIDAÇÃO', 'REVISÃO', 'SOLICITADO', 'DESPACHO', 'ENCAMINHADO'
     ]
     
-    for i, linha in enumerate(linhas):
+    for linha in linhas:
         texto_linha = linha.text.strip()
         if texto_linha:
             partes = [p.strip() for p in texto_linha.split("\n") if p.strip()]
@@ -148,7 +148,6 @@ try:
                 
                 if any(char.isdigit() for char in protocolo_web) and len(protocolo_web) < 35:
                     status_web = ""
-                    
                     for parte in reversed(partes[1:]):
                         if any(termo in parte.upper() for termo in palavras_status):
                             status_web = parte
@@ -165,20 +164,19 @@ try:
                         
                     dados_portal[protocolo_web] = status_web
 
-    print(f"✅ Mapeamento concluído. {len(dados_portal)} processos reais extraídos do site.")
+    print(f"✅ Extraídos {len(dados_portal)} registros do site.")
 
 except Exception as e:
-    print(f"❌ Falha durante a execução da navegação automatizada: {e}")
+    print(f"❌ Falha na execução da automação: {e}")
 finally:
     driver.quit()
-    print("🔒 Instância do navegador encerrada com segurança.")
 
 # ==========================================
-# 3. COMPARAÇÃO DOS STATUS MAPEADOS
+# 3. COMPARAÇÃO E SUBSTITUIÇÃO DA LINHA TODA
 # ==========================================
 processos_alterados = []
 
-print(f"⚖️ Comparando registros utilizando as colunas identificadas...")
+print(f"⚖️ Iniciando análise de reescrita de linhas...")
 for index, row in df.iterrows():
     if col_ativo and str(row.get(col_ativo, "")).strip().upper() != "SIM":
         continue
@@ -193,10 +191,19 @@ for index, row in df.iterrows():
             break
             
     if status_novo and status_antigo != status_novo:
-        print(f"⚠️ ALTERAÇÃO ENCONTRADA: Processo {protocolo_planilha} mudou de '{status_antigo}' para '{status_novo}'")
+        print(f"⚠️ MUDANÇA TOTAL NA LINHA: {protocolo_planilha} de '{status_antigo}' -> '{status_novo}'")
         processos_alterados.append({'protocolo': protocolo_planilha, 'antigo': status_antigo, 'novo': status_novo})
+        
+        # ⚡ OPÇÃO 2: Limpa a linha inteira da planilha e redefine apenas os dados essenciais novos
+        for col in df.columns:
+            df.at[index, col] = None # Limpa o conteúdo antigo da linha toda
+            
+        # Preenche os dados novos limpos do portal
+        df.at[index, col_protocolo] = protocolo_planilha
         df.at[index, col_status] = status_novo
         df.at[index, col_modificado] = agora_str
+        if col_ativo:
+            df.at[index, col_ativo] = "SIM"
 
 # ==========================================
 # 4. SALVAMENTO AUTOMÁTICO NO GITHUB E ENVIO DO E-MAIL
@@ -206,73 +213,55 @@ if processos_alterados:
         print("💾 Gravando atualizações na planilha de controle...")
         with pd.ExcelWriter(nome_planilha, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
             df.to_excel(writer, sheet_name=nome_aba, index=False)
-        print("📊 Planilha atualizada localmente.")
         
-        # --- BLOCO EXCLUSIVO: SALVAMENTO AUTÓNOMO NO GITHUB ---
         print("🚀 Enviando alterações automaticamente para o repositório GitHub...")
         subprocess.run(["git", "config", "user.name", "Automated Robot"], check=True)
         subprocess.run(["git", "config", "user.email", "robot@artesano.com"], check=True)
         subprocess.run(["git", "add", nome_planilha], check=True)
-        subprocess.run(["git", "commit", "-m", f"🤖 Atualização automática de status: {agora_str}"], check=True)
+        subprocess.run(["git", "commit", "-m", f"🤖 Substituição total de linhas alteradas: {agora_str}"], check=True)
         subprocess.run(["git", "push"], check=True)
         print("✨ GitHub atualizado com sucesso de forma autónoma!")
         
         if SENHA_GMAIL:
-            print("✉️ Estruturando e-mail em HTML...")
+            print("✉️ Enviando e-mail de notificação...")
             msg = MIMEMultipart('alternative')
             msg['From'] = EMAIL_REMETENTE
             msg['To'] = ", ".join(EMAIL_DESTINATARIOS)
-            msg['Subject'] = "⚠️ Alteração de Status Detectada nos Protocolos"
+            msg['Subject'] = "⚠️ Alerta: Linhas de Protocolos Reescritas!"
             
             corpo_html = f"""
             <html>
             <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333333;">
                 <p>Olá, Artesano!</p>
-                <p>O robô identificou que houve alteração de status nos seguintes processos ativos:</p>
-                
-                <div style="background-color: #f8f9fa; border-left: 4px solid #007bff; padding: 12px; margin-bottom: 20px;">
-                    <strong style="color: #007bff; font-size: 14px; letter-spacing: 0.5px;">🏢 PORTAL DE SANTANA DE PARNAÍBA</strong>
+                <p>O robô identificou mudanças e <strong>substituiu a linha inteira</strong> dos seguintes processos ativos:</p>
+                <div style="background-color: #f8f9fa; border-left: 4px solid #dc3545; padding: 12px; margin-bottom: 20px;">
                     <ul style="margin-top: 8px; padding-left: 20px;">
             """
-            
             for x in processos_alterados:
                 corpo_html += f"""
                         <li style="margin-bottom: 12px;">
-                            <strong>Protocolo:</strong> <code style="background-color: #e9ecef; padding: 2px 6px; border-radius: 4px; font-size: 13px;">{x['protocolo']}</code><br>
-                            <span style="color: #dc3545;">🔴 Status Anterior:</span> {x['antigo']}<br>
-                            <span style="color: #28a745;">🟢 Novo Status Atualizado:</span> <strong>{x['novo']}</strong>
+                            <strong>Protocolo:</strong> <code style="background-color: #e9ecef; padding: 2px 6px; border-radius: 4px;">{x['protocolo']}</code><br>
+                            <span style="color: #dc3545;">❌ Registro Antigo Apagado</span><br>
+                            <span style="color: #28a745;">✅ Nova Linha Criada com Status:</span> <strong>{x['novo']}</strong>
                         </li>
                 """
-                
             corpo_html += f"""
                     </ul>
                 </div>
-                
-                <p>A planilha de monitoramento já foi atualizada automaticamente com as novas informações.</p>
-                <p>Para verificar os detalhes completos, aceda pelo link oficial abaixo:</p>
-                <p style="margin-top: 15px; margin-bottom: 20px;">
-                    <a href="{LINK_PLANILHA}" target="_blank" style="color: #007bff; font-weight: bold; text-decoration: underline; font-size: 15px;">🔗 monitor_protocolos</a>
-                </p>
+                <p>Para ver a planilha atualizada no repositório, acesse o link:</p>
+                <p><a href="{LINK_PLANILHA}" target="_blank" style="color: #007bff; font-weight: bold;">🔗 monitor_protocolos</a></p>
                 <br>
-                <p style="font-size: 12px; color: #6c757d;">
-                    Atenciosamente,<br>
-                    <strong>Robô de Monitoring de Protocolos</strong><br>
-                    Verificação efetuada em: {agora_str}
-                </p>
+                <p style="font-size: 12px; color: #6c757d;">Executado de forma autônoma em: {agora_str}</p>
             </body>
             </html>
             """
-            
             msg.attach(MIMEText(corpo_html, 'html'))
-            
             with smtplib.SMTP('smtp.gmail.com', 587) as server:
                 server.starttls()
                 server.login(EMAIL_REMETENTE, SENHA_GMAIL)
                 server.sendmail(EMAIL_REMETENTE, EMAIL_DESTINATARIOS, msg.as_string())
-            print("✉️ E-mail em HTML disparado com sucesso!")
-        else:
-            print("⚠️ Envio de e-mail cancelado: Variável 'SENHA_GMAIL' não configurada.")
+            print("✉️ Notificação enviada!")
     except Exception as e:
-        print(f"❌ Falha ao salvar no GitHub ou disparar e-mail: {e}")
+        print(f"❌ Falha no salvamento autônomo: {e}")
 else:
-    print("🦥 Varredura finalizada. Nenhum processo sofreu modificações válidas hoje.")
+    print("🦥 Varredura finalizada. Nenhuma linha precisou ser alterada hoje.")
