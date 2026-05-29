@@ -125,21 +125,19 @@ for index, row in df.iterrows():
             dados_novos = v  # Aqui recebemos a lista com todas as colunas separadas
             break
             
-    if dados_novos:
-        # Distribui os dados do site nas colunas da planilha de forma organizada
-        # Se houver pelo menos 1 informação além do protocolo, colocamos no STATUS ATUAL
+   if dados_novos:
         status_novo = dados_novos[0] if len(dados_novos) > 0 else "Sem status"
         df.at[index, col_status] = status_novo
         df.at[index, col_modificado] = agora_str
         
-        # Se houver mais informações na linha do site, jogamos na ÚLTIMA AÇÃO tudo junto ou separado
-        acao_nova = ";".join(dados_novos[1:]) if len(dados_novos) > 1 else status_novo
-        df.at[index, col_acao] = acao_nova
+        # Se existem detalhes extras, usamos eles. 
+        # Se não existem, repetimos o status para a planilha não ficar vazia/desalinhada
+        if len(dados_novos) > 1:
+            detalhes = dados_novos[1:]
+        else:
+            detalhes = [status_novo, "Sem detalhes adicionais"]
         
-        status_antigo = str(row.get(col_status, "")).strip()
-        if status_antigo != status_novo and "Aguardando" not in status_antigo:
-            print(f"⚠️ MUDANÇA DETECTADA NO PROTOCOLO: {protocolo_planilha}")
-            processos_alterados.append({'protocolo': protocolo_planilha, 'antigo': status_antigo, 'novo': status_novo})
+        df.at[index, col_acao] = "¤".join(detalhes)
 
 # ==========================================
 # 4. SALVA O RELATÓRIO FINAL EM CSV NO GITHUB
