@@ -139,10 +139,16 @@ for index, row in df.iterrows():
 # ==========================================
 # 4. SALVA O RELATÓRIO FINAL EM CSV NO GITHUB
 # ==========================================
+# 4. SALVA O RELATÓRIO FINAL EM CSV NO GITHUB
 print("💾 Gravando base de dados atualizada...")
 
-# Mantenha o código exatamente como está, apenas altere esta linha:
-df.to_html("monitor_protocolos.html", index=False)
+# Removemos vírgulas dos textos para não quebrar o CSV
+for col in df.columns:
+    if df[col].dtype == object:
+        df[col] = df[col].str.replace(',', ' -')
+
+# Salva em CSV padrão
+df.to_csv("monitor_protocolos.csv", index=False, sep=",", encoding="utf-8")
 
 if processos_alterados and SENHA_GMAIL:
     try:
