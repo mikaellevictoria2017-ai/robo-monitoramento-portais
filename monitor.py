@@ -142,7 +142,7 @@ for index, row in df.iterrows():
 print("💾 Gravando base de dados atualizada...")
 
 # Esta linha substitui todo o código de salvamento anterior
-df.to_html("monitor_protocolos.html", index=False, border=0, classes='table')
+df.to_html("monitor_protocolos.html", index=False, border=1, classes='tabela-processos'
 
 if processos_alterados and SENHA_GMAIL:
     try:
