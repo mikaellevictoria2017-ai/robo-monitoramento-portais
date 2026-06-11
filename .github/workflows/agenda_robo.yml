@@ -35,6 +35,6 @@ jobs:
         run: |
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email "actions@github.com"
-          git add -f monitor_protocolos.csv
+          git add -f monitor_protocolos.html
           git commit -m "[Robô] Status atualizado automaticamente" || echo "Nenhuma alteracao pendente"
           git push
