@@ -125,18 +125,32 @@ for index, row in df.iterrows():
             dados_novos = v  # Aqui recebemos a lista com todas as colunas separadas
             break
             
-    # 3. ATUALIZAÇÃO DA BASE DE DADOS (Substitua a parte dentro do 'if dados_novos:')
+   # 3. ATUALIZAÇÃO DA BASE DE DADOS
+for index, row in df.iterrows():
+    if col_ativo and str(row.get(col_ativo, "")).strip().upper() != "SIM":
+        continue
+        
+    protocolo_planilha = str(row[col_protocolo]).strip().upper()
+    
+    dados_novos = None
+    for k, v in dados_portal.items():
+        if protocolo_planilha in k or k in protocolo_planilha:
+            dados_novos = v 
+            break
+            
     if dados_novos:
-        # Define o status (primeira parte)
+        # Preenche o status
         df.at[index, col_status] = dados_novos[0] if len(dados_novos) > 0 else "Sem status"
         df.at[index, col_modificado] = agora_str
         
-        # Cria colunas separadas para cada detalhe extra em vez de usar join
-        for i in range(1, min(len(dados_novos), 5)): # Limita a até 4 colunas extras
-            col_extra = f"DETALHE_{i}"
-            if col_extra not in df.columns:
-                df[col_extra] = ""
-            df.at[index, col_extra] = dados_novos[i]
+        # Preenche o resto das colunas COM O QUE O SITE ENVIAR
+        # Isto pega cada parte extra e coloca em colunas novas automaticamente
+        for i in range(1, len(dados_novos)):
+            nome_col_auto = f"DADO_{i}" # Nome simples
+            df.at[index, nome_col_auto] = dados_novos[i]
+
+# O to_html vai salvar todas essas colunas agora
+df.to_html("monitor_protocolos.html", index=False, border=1, classes='table')
             
 # 4. SALVA O RELATÓRIO FINAL EM HTML NO GITHUB
 print("💾 Gravando base de dados atualizada...")
