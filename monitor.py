@@ -125,18 +125,19 @@ for index, row in df.iterrows():
             dados_novos = v  # Aqui recebemos a lista com todas as colunas separadas
             break
             
+    # 3. ATUALIZAÇÃO DA BASE DE DADOS (Substitua a parte dentro do 'if dados_novos:')
     if dados_novos:
-        status_novo = dados_novos[0] if len(dados_novos) > 0 else "Sem status"
-        df.at[index, col_status] = status_novo
+        # Define o status (primeira parte)
+        df.at[index, col_status] = dados_novos[0] if len(dados_novos) > 0 else "Sem status"
         df.at[index, col_modificado] = agora_str
         
-        if len(dados_novos) > 1:
-            detalhes = dados_novos[1:]
-        else:
-            detalhes = [status_novo, "Sem detalhes adicionais"]
+        # Cria colunas separadas para cada detalhe extra em vez de usar join
+        for i in range(1, min(len(dados_novos), 5)): # Limita a até 4 colunas extras
+            col_extra = f"DETALHE_{i}"
+            if col_extra not in df.columns:
+                df[col_extra] = ""
+            df.at[index, col_extra] = dados_novos[i]
             
-        df.at[index, col_acao] = "¤".join(detalhes)
-
 # 4. SALVA O RELATÓRIO FINAL EM HTML NO GITHUB
 print("💾 Gravando base de dados atualizada...")
 
