@@ -5,12 +5,7 @@ from datetime import datetime
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.action_chains import ActionChains
+from playwright.sync_api import sync_playwright
 
 # ==========================================
 # CONFIGURAÇÕES E LINKS
@@ -18,9 +13,10 @@ from selenium.webdriver.common.action_chains import ActionChains
 EMAIL_REMETENTE = "mikaellevictoria2017@gmail.com"
 EMAIL_DESTINATARIOS = ["santos.micaelle2006@gmail.com"]
 
-# 🎯 COLE AQUI O LINK LONGO DO GOOGLE FORMS QUE VOCÊ COPIOU:
+# LINK DO SEU GOOGLE FORMS
 LINK_ENTRADA_GOOGLE_FORMS = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRh-7SIMziaShR1rqLpSnBabRJAIceLSZ6dO0zklOcOg_twfc9G6cwdRGQk1vL2y6lniAmH0mSh6Xw1/pub?gid=1314499551&single=true&output=csv"
 
+# Variáveis secretas do GitHub
 USER_PORTAL = os.getenv("USER_PORTAL", "")
 SENHA_PORTAL = os.getenv("SENHA_PORTAL", "")
 SENHA_GMAIL = os.getenv("SENHA_GMAIL", "")
@@ -29,135 +25,102 @@ agora_str = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
 print(f"===== INICIANDO MONITORAMENTO VIA GOOGLE FORMS: {agora_str} =====")
 
 # ==========================================
-# 1. LEITURA DOS PROTOCOLOS CADASTRADOS NO FORMULÁRIO
+# 1. LEITURA DOS PROTOCOLOS DA PLANILHA
 # ==========================================
 try:
     df = pd.read_csv(LINK_ENTRADA_GOOGLE_FORMS)
-    colunas_originais = list(df.columns)
-    
     df.columns = [str(c).strip().upper() for c in df.columns]
-    print(f"📥 Dados do formulário carregados! Colunas: {list(df.columns)}")
+    print(f"📥 Dados carregados! Colunas: {list(df.columns)}")
     
     col_protocolo = [c for c in df.columns if "PROTOCOLO" in c or "NUMER" in c or "PROCESSO" in c][0]
-    col_ativo = [c for c in df.columns if "ATIVO" in c][0] if any("ATIVO" in c for c in df.columns) else None
     
+    # Prepara colunas de controle se não existirem
     if "STATUS ATUAL" not in df.columns:
-        df["STATUS ATUAL"] = "Aguardando primeira checagem..."
+        df["STATUS ATUAL"] = "Aguardando..."
     if "ÚLTIMA AÇÃO" not in df.columns:
         df["ÚLTIMA AÇÃO"] = "Nenhuma"
     if "MODIFICADO EM" not in df.columns:
         df["MODIFICADO EM"] = agora_str
-        
-    col_status = "STATUS ATUAL"
-    col_acao = "ÚLTIMA AÇÃO"
-    col_modificado = "MODIFICADO EM"
 
     protocolos_verificar = df[col_protocolo].dropna().astype(str).tolist()
-    print(f"🔍 Protocolos localizados para checagem: {protocolos_verificar}")
+    print(f"🔍 Protocolos para checagem: {protocolos_verificar}")
 
 except Exception as e:
-    print(f"❌ Erro ao ler os dados de entrada do Google Forms: {e}")
+    print(f"❌ Erro ao ler os dados do Google Forms: {e}")
     exit(1)
 
 # ==========================================
-# 2. AUTOMAÇÃO NO PORTAL DA PREFEITURA
+# 2. AUTOMAÇÃO NO PORTAL (PLAYWRIGHT) E COMPARAÇÃO
 # ==========================================
-dados_portal = {}
-options = Options()
-options.add_argument("--headless=new") 
-options.add_argument("--no-sandbox")
-options.add_argument("--disable-dev-shm-usage")
-options.add_argument("--window-size=1920,1080")
-
-driver = webdriver.Chrome(options=options)
-wait = WebDriverWait(driver, 35)
-actions = ActionChains(driver)
+processos_alterados = [] # Lista que vai guardar quem mudou de status
 
 try:
-    print("🌐 Acessando o portal de Santana de Parnaíba...")
-    driver.get("https://santanadeparnaiba.aprova.com.br/login")
-    time.sleep(7)
-    
-    inputs = wait.until(EC.presence_of_all_elements_located((By.TAG_NAME, "input")))
-    if len(inputs) >= 2:
-        inputs[0].send_keys(USER_PORTAL)
-        inputs[1].send_keys(SENHA_PORTAL)
-        botao = driver.find_element(By.CSS_SELECTOR, "button[type='submit']")
-        actions.move_to_element(botao).click().perform()
-        
-    time.sleep(15)
-    driver.get("https://santanadeparnaiba.aprova.com.br/processos")
-    time.sleep(10)
-    
-    linhas = driver.find_elements(By.XPATH, "//tbody/tr | //tr | //div[contains(@class, 'linha')]")
-    
-    for linha in linhas:
-        texto_linha = linha.text.strip()
-        if texto_linha:
-            partes = [p.strip() for p in texto_linha.split("\n") if p.strip()]
-            if len(partes) >= 2:
-                protocolo_web = partes[0].upper()
-                if any(char.isdigit() for char in protocolo_web):
-                    # Se o site trouxe várias informações na linha, separamos por colunas
-                    # Ex: partes[1] vai para uma coluna, partes[2] para outra...
-                    dados_portal[protocolo_web] = partes[1:]
+    with sync_playwright() as p:
+        navegador = p.chromium.launch(headless=True)
+        pagina = navegador.new_page()
 
-    print(f"✅ Extraídos {len(dados_portal)} registros completos do site.")
+        print("🌐 Acessando o portal de Santana de Parnaíba...")
+        pagina.goto("https://santanadeparnaiba.aprova.com.br/")
+        pagina.get_by_text("Acessar minha conta").click()
+        time.sleep(2) 
+
+        print("🔑 Fazendo login...")
+        pagina.locator("input[type='email']").fill(USER_PORTAL)
+        pagina.locator("input[type='password']").fill(SENHA_PORTAL)
+        pagina.get_by_role("button", name="Entrar").click()
+
+        pagina.wait_for_load_state("networkidle")
+        time.sleep(3)
+        pagina.get_by_text("Processos", exact=True).click()
+        time.sleep(3) # Aguarda tabela carregar
+
+        # Agora o robô pesquisa protocolo por protocolo da sua planilha
+        for index, row in df.iterrows():
+            protocolo_planilha = str(row[col_protocolo]).strip().upper()
+            status_antigo = str(row["STATUS ATUAL"]).strip()
+            
+            print(f"🔎 Pesquisando: {protocolo_planilha}")
+            busca_input = pagina.locator("input[placeholder='Buscar aqui']").first
+            busca_input.fill(protocolo_planilha)
+            busca_input.press("Enter")
+            time.sleep(3)
+
+            try:
+                # Extrai o novo status da tabela
+                linha_processo = pagina.locator(f"tr:has-text('{protocolo_planilha}')")
+                status_novo = linha_processo.locator("td").nth(6).inner_text().strip()
+                
+                # A MÁGICA: Compara o status do site com o da planilha
+                if status_novo != status_antigo and status_antigo != "Aguardando...":
+                    print(f"⚠️ MUDANÇA DETECTADA! {protocolo_planilha}: {status_antigo} -> {status_novo}")
+                    processos_alterados.append({
+                        "protocolo": protocolo_planilha,
+                        "velho": status_antigo,
+                        "novo": status_novo
+                    })
+
+                # Atualiza a planilha (Dataframe) com o status novo
+                df.at[index, "STATUS ATUAL"] = status_novo
+                df.at[index, "MODIFICADO EM"] = agora_str
+
+            except Exception as e:
+                print(f"⚠️ Não encontrou status para o protocolo {protocolo_planilha}.")
+                
+            busca_input.fill("") # Limpa a barra de pesquisa para o próximo
+            
+        navegador.close()
+
 except Exception as e:
-    print(f"❌ Falha na automação: {e}")
-finally:
-    driver.quit()
+    print(f"❌ Falha crítica no robô: {e}")
 
 # ==========================================
-# 3. ATUALIZAÇÃO DA BASE DE DADOS
+# 3. SALVAR RELATÓRIO E ENVIAR E-MAIL
 # ==========================================
-processos_alterados = []
-
-for index, row in df.iterrows():
-    if col_ativo and str(row.get(col_ativo, "")).strip().upper() != "SIM":
-        continue
-        
-    protocolo_planilha = str(row[col_protocolo]).strip().upper()
-    
-    dados_novos = None
-    for k, v in dados_portal.items():
-        if protocolo_planilha in k or k in protocolo_planilha:
-            dados_novos = v  # Aqui recebemos a lista com todas as colunas separadas
-            break
-            
-   # 3. ATUALIZAÇÃO DA BASE DE DADOS
-for index, row in df.iterrows():
-    if col_ativo and str(row.get(col_ativo, "")).strip().upper() != "SIM":
-        continue
-        
-    protocolo_planilha = str(row[col_protocolo]).strip().upper()
-    
-    dados_novos = None
-    for k, v in dados_portal.items():
-        if protocolo_planilha in k or k in protocolo_planilha:
-            dados_novos = v 
-            break
-            
-    if dados_novos:
-        # Preenche o status
-        df.at[index, col_status] = dados_novos[0] if len(dados_novos) > 0 else "Sem status"
-        df.at[index, col_modificado] = agora_str
-        
-        # Preenche o resto das colunas COM O QUE O SITE ENVIAR
-        # Isto pega cada parte extra e coloca em colunas novas automaticamente
-        for i in range(1, len(dados_novos)):
-            nome_col_auto = f"DADO_{i}" # Nome simples
-            df.at[index, nome_col_auto] = dados_novos[i]
-
-# O to_html vai salvar todas essas colunas agora
-df.to_html("monitor_protocolos.html", index=False, border=1, classes='table')
-            
-# 4. SALVA O RELATÓRIO FINAL EM HTML NO GITHUB
 print("💾 Gravando base de dados atualizada...")
+# O erro de sintaxe (parêntese) foi corrigido aqui:
+df.to_html("monitor_protocolos.html", index=False, border=1, classes='tabela-processos')
 
-# Esta linha substitui todo o código de salvamento anterior
-df.to_html("monitor_protocolos.html", index=False, border=1, classes='tabela-processos'
-
+# Só envia e-mail se a lista 'processos_alterados' tiver coisas dentro
 if processos_alterados and SENHA_GMAIL:
     try:
         msg = MIMEMultipart('alternative')
@@ -167,16 +130,17 @@ if processos_alterados and SENHA_GMAIL:
         
         blocos = ""
         for p in processos_alterados:
-            blocos += f"<li><strong>Protocolo:</strong> {p['protocolo']} | <strong>Novo Status:</strong> {p['novo']}</li>"
+            blocos += f"<li><strong>Protocolo:</strong> {p['protocolo']}<br>De: <em>{p['velho']}</em> ➡️ Para: <strong>{p['novo']}</strong></li><br>"
         
-        corpo_html = f"<html><body><p>Olá! O relatório foi atualizado com novos status:</p><ul>{blocos}</ul></body></html>"
+        corpo_html = f"<html><body><p>Olá! O sistema detectou movimentações nos processos abaixo:</p><ul>{blocos}</ul></body></html>"
         msg.attach(MIMEText(corpo_html, 'html'))
+        
         with smtplib.SMTP('smtp.gmail.com', 587) as server:
             server.starttls()
             server.login(EMAIL_REMETENTE, SENHA_GMAIL)
             server.sendmail(EMAIL_REMETENTE, EMAIL_DESTINATARIOS, msg.as_string())
-        print("✉️ E-mail enviado com sucesso!")
+        print("✉️ E-mail de notificação enviado com sucesso!")
     except Exception as e:
         print(f"❌ Erro ao enviar e-mail: {e}")
 else:
-    print("🦥 Varredura finalizada.")
+    print("🦥 Varredura finalizada. Nenhuma movimentação nova detectada.")
