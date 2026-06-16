@@ -10,6 +10,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.action_chains import ActionChains
 
 # ==========================================
 # CONFIGURAÇÕES E LINKS
@@ -30,7 +31,6 @@ print(f"===== INICIANDO MONITORAMENTO: {agora_str} =====")
 # ==========================================
 try:
     df = pd.read_csv(LINK_ENTRADA_GOOGLE_FORMS)
-    colunas_originais = list(df.columns)
     df.columns = [str(c).strip().upper() for c in df.columns]
     
     col_protocolo = [c for c in df.columns if "PROTOCOLO" in c or "NUMER" in c or "PROCESSO" in c][0]
@@ -59,15 +59,18 @@ options.add_argument("--disable-dev-shm-usage")
 
 driver = webdriver.Chrome(options=options)
 wait = WebDriverWait(driver, 35)
+actions = ActionChains(driver)
 
 try:
+    print("🌐 Acessando o portal de Santana de Parnaíba...")
     driver.get("https://santanadeparnaiba.aprova.com.br/login")
     time.sleep(7)
     inputs = wait.until(EC.presence_of_all_elements_located((By.TAG_NAME, "input")))
     if len(inputs) >= 2:
         inputs[0].send_keys(USER_PORTAL)
         inputs[1].send_keys(SENHA_PORTAL)
-        driver.find_element(By.CSS_SELECTOR, "button[type='submit']").click()
+        botao = driver.find_element(By.CSS_SELECTOR, "button[type='submit']")
+        actions.move_to_element(botao).click().perform()
         
     time.sleep(15)
     driver.get("https://santanadeparnaiba.aprova.com.br/processos")
@@ -87,7 +90,7 @@ finally:
     driver.quit()
 
 # ==========================================
-# 3. ATUALIZAÇÃO DA BASE DE DADOS SEGUIDO DO PORTAL
+# 3. ATUALIZAÇÃO DA BASE DE DADOS
 # ==========================================
 processos_alterados = []
 
@@ -108,20 +111,18 @@ for index, row in df.iterrows():
         df.at[index, col_acao] = status_novo
         df.at[index, col_modificado] = agora_str
         
-        # Cria as colunas exatamente na mesma sequência do portal
+        # Insere os dados na sequência exata das colunas do portal
         for i, valor in enumerate(dados_novos):
             df.at[index, f"COLUNA_{i+1}"] = valor
         
         if status_antigo != status_novo and "Aguardando" not in status_antigo:
             processos_alterados.append({'protocolo': protocolo_planilha, 'antigo': status_antigo, 'novo': status_novo})
 
-df.columns = colunas_originais + [c for c in df.columns if c not in colunas_originais]
-
 # ==========================================
 # 4. SALVAMENTO E ENVIO DE E-MAIL
 # ==========================================
 df.to_csv("monitor_protocolos.csv", index=False, encoding="utf-8-sig", sep=";")
-print("💾 Base salva em monitor_protocolos.csv")
+print("💾 Base salva com sucesso em monitor_protocolos.csv!")
 
 if processos_alterados and SENHA_GMAIL:
     try:
