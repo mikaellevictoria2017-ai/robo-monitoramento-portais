@@ -96,7 +96,6 @@ try:
             partes = [p.strip() for p in texto_linha.split("\n") if p.strip()]
             if len(partes) >= 1:
                 protocolo_web = partes[0].upper().strip()
-                # Guarda a lista inteira na ordem exata das colunas do portal
                 dados_portal[protocolo_web] = partes
 
     print(f"✅ Extraídos {len(dados_portal)} registros completos do site.")
@@ -129,7 +128,7 @@ for index, row in df.iterrows():
         df.at[index, col_acao] = status_novo
         df.at[index, col_modificado] = agora_str
         
-        # Cria colunas sequenciais seguindo estritamente a ordem do portal
+        # Sequência exata de colunas do portal para a planilha
         for i, valor in enumerate(dados_novos):
             df.at[index, f"COLUNA_{i+1}"] = valor
         
@@ -142,8 +141,7 @@ df.columns = colunas_originais + [c for c in df.columns if c not in colunas_orig
 # ==========================================
 # 4. SALVA O RELATÓRIO FINAL EM CSV NO GITHUB
 # ==========================================
-print("💾 Gravando base de dados actualizada...")
-# Salvando com ponto e vírgula para alinhar cada coisa na sua coluna na planilha
+print("💾 Gravando base de dados atualizada...")
 df.to_csv("monitor_protocolos.csv", index=False, encoding="utf-8-sig", sep=";")
 
 if processos_alterados and SENHA_GMAIL:
@@ -157,14 +155,4 @@ if processos_alterados and SENHA_GMAIL:
         for p in processos_alterados:
             blocos += f"<li><strong>Protocolo:</strong> {p['protocolo']} | <strong>Novo Status:</strong> {p['novo']}</li>"
         
-        corpo_html = f"<html><body><p>Olá! O relatório foi atualizado com novos status:</p><ul>{blocos}</ul></body></html>"
-        msg.attach(MIMEText(corpo_html, 'html'))
-        with smtplib.SMTP('smtp.gmail.com', 587) as server:
-            server.starttls()
-            server.login(EMAIL_REMETENTE, SENHA_GMAIL)
-            server.sendmail(EMAIL_REMETENTE, EMAIL_DESTINATARIOS, msg.as_string())
-        print("✉️ E-mail enviado com sucesso!")
-    except Exception as e:
-        print(f"❌ Erro ao enviar e-mail: {e}")
-else:
-    print("🦥 Varredura finalizada.")
+        corpo_html = f"<html><body><p>Olá! O relatório
