@@ -32,6 +32,6 @@ jobs:
         run: |
           git config user.name "Robot"
           git config user.email "bot@github.com"
-          git add monitor_protocolos.csv
+          git add monitor_protocolos.tsv
           git commit -m "Auto-update status" || exit 0
           git push
