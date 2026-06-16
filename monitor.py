@@ -10,14 +10,12 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.action_chains import ActionChains
 
 # ==========================================
 # CONFIGURAÇÕES E LINKS
 # ==========================================
 EMAIL_REMETENTE = "mikaellevictoria2017@gmail.com"
 EMAIL_DESTINATARIOS = ["santos.micaelle2006@gmail.com"]
-
 LINK_ENTRADA_GOOGLE_FORMS = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRh-7SIMziaShR1rqLpSnBabRJAIceLSZ6dO0zklOcOg_twfc9G6cwdRGQk1vL2y6lniAmH0mSh6Xw1/pub?gid=1314499551&single=true&output=csv"
 
 USER_PORTAL = os.getenv("USER_PORTAL", "")
@@ -25,37 +23,29 @@ SENHA_PORTAL = os.getenv("SENHA_PORTAL", "")
 SENHA_GMAIL = os.getenv("SENHA_GMAIL", "")
 
 agora_str = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-print(f"===== INICIANDO MONITORAMENTO VIA GOOGLE FORMS: {agora_str} =====")
+print(f"===== INICIANDO MONITORAMENTO: {agora_str} =====")
 
 # ==========================================
-# 1. LEITURA DOS PROTOCOLOS CADASTRADOS NO FORMULÁRIO
+# 1. LEITURA DOS DADOS DO FORMULÁRIO
 # ==========================================
 try:
     df = pd.read_csv(LINK_ENTRADA_GOOGLE_FORMS)
     colunas_originais = list(df.columns)
-    
     df.columns = [str(c).strip().upper() for c in df.columns]
-    print(f"📥 Dados do formulário carregados! Colunas: {list(df.columns)}")
     
     col_protocolo = [c for c in df.columns if "PROTOCOLO" in c or "NUMER" in c or "PROCESSO" in c][0]
     col_ativo = [c for c in df.columns if "ATIVO" in c][0] if any("ATIVO" in c for c in df.columns) else None
     
-    if "STATUS ATUAL" not in df.columns:
-        df["STATUS ATUAL"] = "Aguardando primeira checagem..."
-    if "ÚLTIMA AÇÃO" not in df.columns:
-        df["ÚLTIMA AÇÃO"] = "Nenhuma"
-    if "MODIFICADO EM" not in df.columns:
-        df["MODIFICADO EM"] = agora_str
+    if "STATUS ATUAL" not in df.columns: df["STATUS ATUAL"] = "Aguardando primeira checagem..."
+    if "ÚLTIMA AÇÃO" not in df.columns: df["ÚLTIMA AÇÃO"] = "Nenhuma"
+    if "MODIFICADO EM" not in df.columns: df["MODIFICADO EM"] = agora_str
         
     col_status = "STATUS ATUAL"
     col_acao = "ÚLTIMA AÇÃO"
     col_modificado = "MODIFICADO EM"
-
     protocolos_verificar = df[col_protocolo].dropna().astype(str).tolist()
-    print(f"🔍 Protocolos localizados para checagem: {protocolos_verificar}")
-
 except Exception as e:
-    print(f"❌ Erro ao ler os dados de entrada do Google Forms: {e}")
+    print(f"❌ Erro na leitura do Forms: {e}")
     exit(1)
 
 # ==========================================
@@ -66,30 +56,24 @@ options = Options()
 options.add_argument("--headless=new") 
 options.add_argument("--no-sandbox")
 options.add_argument("--disable-dev-shm-usage")
-options.add_argument("--window-size=1920,1080")
 
 driver = webdriver.Chrome(options=options)
 wait = WebDriverWait(driver, 35)
-actions = ActionChains(driver)
 
 try:
-    print("🌐 Acessando o portal de Santana de Parnaíba...")
     driver.get("https://santanadeparnaiba.aprova.com.br/login")
     time.sleep(7)
-    
     inputs = wait.until(EC.presence_of_all_elements_located((By.TAG_NAME, "input")))
     if len(inputs) >= 2:
         inputs[0].send_keys(USER_PORTAL)
         inputs[1].send_keys(SENHA_PORTAL)
-        botao = driver.find_element(By.CSS_SELECTOR, "button[type='submit']")
-        actions.move_to_element(botao).click().perform()
+        driver.find_element(By.CSS_SELECTOR, "button[type='submit']").click()
         
     time.sleep(15)
     driver.get("https://santanadeparnaiba.aprova.com.br/processos")
     time.sleep(10)
     
     linhas = driver.find_elements(By.XPATH, "//tbody/tr | //tr")
-    
     for linha in linhas:
         texto_linha = linha.text.strip()
         if texto_linha:
@@ -97,22 +81,18 @@ try:
             if len(partes) >= 1:
                 protocolo_web = partes[0].upper().strip()
                 dados_portal[protocolo_web] = partes
-
-    print(f"✅ Extraídos {len(dados_portal)} registros completos do site.")
 except Exception as e:
     print(f"❌ Falha na automação: {e}")
 finally:
     driver.quit()
 
 # ==========================================
-# 3. ATUALIZAÇÃO DA BASE DE DADOS
+# 3. ATUALIZAÇÃO DA BASE DE DADOS SEGUIDO DO PORTAL
 # ==========================================
 processos_alterados = []
 
 for index, row in df.iterrows():
-    if col_ativo and str(row.get(col_ativo, "")).strip().upper() != "SIM":
-        continue
-        
+    if col_ativo and str(row.get(col_ativo, "")).strip().upper() != "SIM": continue
     protocolo_planilha = str(row[col_protocolo]).strip().upper()
     status_antigo = str(row.get(col_status, "")).strip()
     
@@ -128,21 +108,20 @@ for index, row in df.iterrows():
         df.at[index, col_acao] = status_novo
         df.at[index, col_modificado] = agora_str
         
-        # Sequência exata de colunas do portal para a planilha
+        # Cria as colunas exatamente na mesma sequência do portal
         for i, valor in enumerate(dados_novos):
             df.at[index, f"COLUNA_{i+1}"] = valor
         
         if status_antigo != status_novo and "Aguardando" not in status_antigo:
-            print(f"⚠️ MUDANÇA DETECTADA NO PROTOCOLO: {protocolo_planilha}")
             processos_alterados.append({'protocolo': protocolo_planilha, 'antigo': status_antigo, 'novo': status_novo})
 
 df.columns = colunas_originais + [c for c in df.columns if c not in colunas_originais]
 
 # ==========================================
-# 4. SALVA O RELATÓRIO FINAL EM CSV NO GITHUB
+# 4. SALVAMENTO E ENVIO DE E-MAIL
 # ==========================================
-print("💾 Gravando base de dados atualizada...")
 df.to_csv("monitor_protocolos.csv", index=False, encoding="utf-8-sig", sep=";")
+print("💾 Base salva em monitor_protocolos.csv")
 
 if processos_alterados and SENHA_GMAIL:
     try:
@@ -150,9 +129,13 @@ if processos_alterados and SENHA_GMAIL:
         msg['From'] = EMAIL_REMETENTE
         msg['To'] = ", ".join(EMAIL_DESTINATARIOS)
         msg['Subject'] = "⚠️ Alerta: Status de Protocolo Atualizado!"
-        
-        blocos = ""
-        for p in processos_alterados:
-            blocos += f"<li><strong>Protocolo:</strong> {p['protocolo']} | <strong>Novo Status:</strong> {p['novo']}</li>"
-        
-        corpo_html = f"<html><body><p>Olá! O relatório
+        blocos = "".join([f"<li><strong>Protocolo:</strong> {p['protocolo']} | <strong>Novo Status:</strong> {p['novo']}</li>" for p in processos_alterados])
+        corpo_html = f"<html><body><p>Olá! O relatório foi atualizado:</p><ul>{blocos}</ul></body></html>"
+        msg.attach(MIMEText(corpo_html, 'html'))
+        with smtplib.SMTP('smtp.gmail.com', 587) as server:
+            server.starttls()
+            server.login(EMAIL_REMETENTE, SENHA_GMAIL)
+            server.sendmail(EMAIL_REMETENTE, EMAIL_DESTINATARIOS, msg.as_string())
+        print("✉️ E-mail enviado!")
+    except Exception as e:
+        print(f"❌ Erro e-mail: {e}")
