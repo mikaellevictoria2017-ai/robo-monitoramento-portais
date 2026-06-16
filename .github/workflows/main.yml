@@ -19,7 +19,9 @@ jobs:
           USER_PORTAL: ${{ secrets.USER_PORTAL }}
           SENHA_PORTAL: ${{ secrets.SENHA_PORTAL }}
           SENHA_GMAIL: ${{ secrets.SENHA_GMAIL }}
-        run: python monitor.py
+        run: |
+          ls -R  # <--- ADICIONE ESTA LINHA AQUI
+          python monitor.py
       - name: Commit e Push
         run: |
           git config user.name "Robot"
