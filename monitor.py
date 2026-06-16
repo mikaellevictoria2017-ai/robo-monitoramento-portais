@@ -60,19 +60,26 @@ try:
         pagina = navegador.new_page()
 
         print("🌐 Acessando o portal de Santana de Parnaíba...")
-        pagina.goto("https://santanadeparnaiba.aprova.com.br/")
-        pagina.get_by_text("Acessar minha conta").click()
-        time.sleep(2) 
+        pagina.goto("https://santanadeparnaiba.aprova.com.br/", wait_until="networkidle")
 
-        print("🔑 Fazendo login...")
-        pagina.locator("input[type='email']").fill(USER_PORTAL)
-        pagina.locator("input[type='password']").fill(SENHA_PORTAL)
+        # 1. Espera o botão de login estar visível e clica
+        botao_acesso = pagina.get_by_role("button", name="Acessar minha conta")
+        botao_acesso.wait_for(state="visible", timeout=60000)
+        botao_acesso.click()
+
+        # 2. Espera a janela de login abrir (aqui está o segredo!)
+        print("🔑 Aguardando campos de login...")
+        campo_email = pagina.get_by_placeholder("E-mail")
+        campo_email.wait_for(state="visible", timeout=60000)
+        
+        # 3. Preenche com calma
+        campo_email.fill(USER_PORTAL)
+        pagina.get_by_placeholder("Digite sua senha").fill(SENHA_PORTAL)
         pagina.get_by_role("button", name="Entrar").click()
 
-        pagina.wait_for_load_state("networkidle")
-        time.sleep(3)
-        pagina.get_by_text("Processos", exact=True).click()
-        time.sleep(3) # Aguarda tabela carregar
+        # 4. Espera a página de "Processos" carregar depois do login
+        pagina.wait_for_url("**/processos", timeout=60000)
+        print("✅ Login realizado com sucesso!")
 
         # Agora o robô pesquisa protocolo por protocolo da sua planilha
         for index, row in df.iterrows():
