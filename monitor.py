@@ -1,66 +1,174 @@
-import pandas as pd
-from playwright.sync_api import sync_playwright
 import os
+import time
+import pandas as pd
+from datetime import datetime
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from datetime import datetime
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.action_chains import ActionChains
 
-# Configurações
-USER = os.getenv("USER_PORTAL")
-SENHA = os.getenv("SENHA_PORTAL")
-GMAIL = os.getenv("SENHA_GMAIL")
-AGORA = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+# ==========================================
+# CONFIGURAÇÕES E LINKS
+# ==========================================
+EMAIL_REMETENTE = "mikaellevictoria2017@gmail.com"
+EMAIL_DESTINATARIOS = ["santos.micaelle2006@gmail.com"]
 
-def main():
-    # 1. Carrega dados locais
-    df = pd.read_csv("protocolos.csv")
+# 🎯 COLE AQUI O LINK LONGO DO GOOGLE FORMS QUE VOCÊ COPIOU:
+LINK_ENTRADA_GOOGLE_FORMS = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRh-7SIMziaShR1rqLpSnBabRJAIceLSZ6dO0zklOcOg_twfc9G6cwdRGQk1vL2y6lniAmH0mSh6Xw1/pub?gid=1314499551&single=true&output=csv"
+
+USER_PORTAL = os.getenv("USER_PORTAL", "")
+SENHA_PORTAL = os.getenv("SENHA_PORTAL", "")
+SENHA_GMAIL = os.getenv("SENHA_GMAIL", "")
+
+agora_str = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+print(f"===== INICIANDO MONITORAMENTO VIA GOOGLE FORMS: {agora_str} =====")
+
+# ==========================================
+# 1. LEITURA DOS PROTOCOLOS CADASTRADOS NO FORMULÁRIO
+# ==========================================
+try:
+    df = pd.read_csv(LINK_ENTRADA_GOOGLE_FORMS)
+    colunas_originais = list(df.columns)
     
-    # 2. Scrape Completo do Portal
-    portal_data = {}
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        page = browser.new_page()
-        page.goto("https://santanadeparnaiba.aprova.com.br/login")
-        page.get_by_placeholder("E-mail").fill(USER)
-        page.get_by_placeholder("Digite sua senha").first.fill(SENHA)
-        page.get_by_role("button", name="Entrar").click()
-        page.wait_for_load_state("networkidle")
-        page.goto("https://santanadeparnaiba.aprova.com.br/processos")
-        page.wait_for_load_state("networkidle")
+    df.columns = [str(c).strip().upper() for c in df.columns]
+    print(f"📥 Dados do formulário carregados! Colunas: {list(df.columns)}")
+    
+    col_protocolo = [c for c in df.columns if "PROTOCOLO" in c or "NUMER" in c or "PROCESSO" in c][0]
+    col_ativo = [c for c in df.columns if "ATIVO" in c][0] if any("ATIVO" in c for c in df.columns) else None
+    
+    if "STATUS ATUAL" not in df.columns:
+        df["STATUS ATUAL"] = "Aguardando primeira checagem..."
+    if "ÚLTIMA AÇÃO" not in df.columns:
+        df["ÚLTIMA AÇÃO"] = "Nenhuma"
+    if "MODIFICADO EM" not in df.columns:
+        df["MODIFICADO EM"] = agora_str
         
-        # Lê a tabela inteira
-        linhas = page.locator("tbody tr").all()
-        for linha in linhas:
-            t = linha.inner_text().split("\n")
-            if len(t) >= 2: portal_data[t[0].strip().upper()] = t[-1].strip()
-        browser.close()
+    col_status = "STATUS ATUAL"
+    col_acao = "ÚLTIMA AÇÃO"
+    col_modificado = "MODIFICADO EM"
 
-    # 3. Sincronização e Mudanças
-    mudancas = []
-    for proto, status in portal_data.items():
-        if proto in df["PROTOCOLO"].values:
-            idx = df[df["PROTOCOLO"] == proto].index[0]
-            if str(df.at[idx, "STATUS ATUAL"]).strip() != status:
-                mudancas.append(f"{proto}: {df.at[idx, 'STATUS ATUAL']} -> {status}")
-                df.at[idx, "STATUS ATUAL"] = status
-                df.at[idx, "MODIFICADO EM"] = AGORA
-        else:
-            nova_linha = {"PROTOCOLO": proto, "STATUS ATUAL": status, "MODIFICADO EM": AGORA}
-            df = pd.concat([df, pd.DataFrame([nova_linha])], ignore_index=True)
-            mudancas.append(f"NOVO PROCESSO: {proto} ({status})")
+    protocolos_verificar = df[col_protocolo].dropna().astype(str).tolist()
+    print(f"🔍 Protocolos localizados para checagem: {protocolos_verificar}")
 
-    df.to_csv("protocolos.csv", index=False)
+except Exception as e:
+    print(f"❌ Erro ao ler os dados de entrada do Google Forms: {e}")
+    exit(1)
+
+# ==========================================
+# 2. AUTOMAÇÃO NO PORTAL DA PREFEITURA
+# ==========================================
+dados_portal = {}
+options = Options()
+options.add_argument("--headless=new") 
+options.add_argument("--no-sandbox")
+options.add_argument("--disable-dev-shm-usage")
+options.add_argument("--window-size=1920,1080")
+
+driver = webdriver.Chrome(options=options)
+wait = WebDriverWait(driver, 35)
+actions = ActionChains(driver)
+
+try:
+    print("🌐 Acessando o portal de Santana de Parnaíba...")
+    driver.get("https://santanadeparnaiba.aprova.com.br/login")
+    time.sleep(7)
     
-    # 4. E-mail
-    if mudancas and GMAIL:
-        msg = MIMEMultipart()
-        msg['Subject'] = f"🔄 Atualização: {len(mudancas)} alterações"
-        msg.attach(MIMEText("\n".join(mudancas), 'plain'))
+    inputs = wait.until(EC.presence_of_all_elements_located((By.TAG_NAME, "input")))
+    if len(inputs) >= 2:
+        inputs[0].send_keys(USER_PORTAL)
+        inputs[1].send_keys(SENHA_PORTAL)
+        botao = driver.find_element(By.CSS_SELECTOR, "button[type='submit']")
+        actions.move_to_element(botao).click().perform()
+        
+    time.sleep(15)
+    driver.get("https://santanadeparnaiba.aprova.com.br/processos")
+    time.sleep(10)
+    
+    linhas = driver.find_elements(By.XPATH, "//tbody/tr | //tr | //div[contains(@class, 'linha')]")
+    
+    for linha in linhas:
+        texto_linha = linha.text.strip()
+        if texto_linha:
+            partes = [p.strip() for p in texto_linha.split("\n") if p.strip()]
+            if len(partes) >= 2:
+                protocolo_web = partes[0].upper()
+                if any(char.isdigit() for char in protocolo_web):
+                    # Mantém a lista pura com a sequência exata de colunas do portal
+                    dados_portal[protocolo_web] = partes
+
+    print(f"✅ Extraídos {len(dados_portal)} registros completos do site.")
+except Exception as e:
+    print(f"❌ Falha na automação: {e}")
+finally:
+    driver.quit()
+
+# ==========================================
+# 3. ATUALIZAÇÃO DA BASE DE DADOS
+# ==========================================
+processos_alterados = []
+
+for index, row in df.iterrows():
+    if col_ativo and str(row.get(col_ativo, "")).strip().upper() != "SIM":
+        continue
+        
+    protocolo_planilha = str(row[col_protocolo]).strip().upper()
+    status_antigo = str(row.get(col_status, "")).strip()
+    
+    dados_novos = None
+    for k, v in dados_portal.items():
+        if protocolo_planilha in k or k in protocolo_planilha:
+            dados_novos = v  
+            break
+            
+    if dados_novos:
+        # Define os status de controle internos do robô
+        status_novo = dados_novos[1] if len(dados_novos) > 1 else dados_novos[0]
+        df.at[index, col_status] = status_novo
+        df.at[index, col_acao] = status_novo
+        df.at[index, col_modificado] = agora_str
+        
+        # Envia cada dado na sequência exata para colunas individuais
+        for i, valor in enumerate(dados_novos):
+            df.at[index, f"COLUNA_{i+1}"] = valor
+        
+        if status_antigo != status_novo and "Aguardando" not in status_antigo:
+            print(f"⚠️ MUDANÇA DETECTADA NO PROTOCOLO: {protocolo_planilha}")
+            processos_alterados.append({'protocolo': protocolo_planilha, 'antigo': status_antigo, 'novo': status_novo})
+
+# Cabeçalhos originais + as novas colunas sequenciais geradas
+df.columns = colunas_originais + [c for c in df.columns if c not in colunas_originais]
+
+# ==========================================
+# 4. SALVA O RELATÓRIO FINAL EM CSV NO GITHUB
+# ==========================================
+print("💾 Gravando base de dados atualizada...")
+# Salvando com delimitador ';' para o Google Sheets separar perfeitamente em células
+df.to_csv("monitor_protocolos.csv", index=False, encoding="utf-8-sig", sep=";")
+
+if processos_alterados and SENHA_GMAIL:
+    try:
+        msg = MIMEMultipart('alternative')
+        msg['From'] = EMAIL_REMETENTE
+        msg['To'] = ", ".join(EMAIL_DESTINATARIOS)
+        msg['Subject'] = "⚠️ Alerta: Status de Protocolo Atualizado!"
+        
+        blocos = ""
+        for p in processos_alterados:
+            blocos += f"<li><strong>Protocolo:</strong> {p['protocolo']} | <strong>Novo Status:</strong> {p['novo']}</li>"
+        
+        corpo_html = f"<html><body><p>Olá! O relatório foi atualizado com novos status:</p><ul>{blocos}</ul></body></html>"
+        msg.attach(MIMEText(corpo_html, 'html'))
         with smtplib.SMTP('smtp.gmail.com', 587) as server:
             server.starttls()
-            server.login("mikaellevictoria2017@gmail.com", GMAIL)
-            server.sendmail("mikaellevictoria2017@gmail.com", "santos.micaelle2006@gmail.com", msg.as_string())
-
-if __name__ == "__main__":
-    main()
+            server.login(EMAIL_REMETENTE, SENHA_GMAIL)
+            server.sendmail(EMAIL_REMETENTE, EMAIL_DESTINATARIOS, msg.as_string())
+        print("✉️ E-mail enviado com sucesso!")
+    except Exception as e:
+        print(f"❌ Erro ao enviar e-mail: {e}")
+else:
+    print("🦥 Varredura finalizada.")
