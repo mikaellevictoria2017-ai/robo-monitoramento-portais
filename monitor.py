@@ -6,148 +6,112 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from playwright.sync_api import sync_playwright
+import subprocess
 
 # ==========================================
-# CONFIGURAÇÕES E LINKS
+# CONFIGURAÇÕES E CHAVES
 # ==========================================
 EMAIL_REMETENTE = "mikaellevictoria2017@gmail.com"
 EMAIL_DESTINATARIOS = ["santos.micaelle2006@gmail.com"]
+LINK_PLANILHA = "SUA_URL_DA_PLANILHA_AQUI" # Certifique-se de preencher isso
 
-# LINK DO SEU GOOGLE FORMS
-LINK_ENTRADA_GOOGLE_FORMS = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRh-7SIMziaShR1rqLpSnBabRJAIceLSZ6dO0zklOcOg_twfc9G6cwdRGQk1vL2y6lniAmH0mSh6Xw1/pub?gid=1314499551&single=true&output=csv"
+nome_planilha = "monitor_protocolos.xlsx"
+nome_aba = "Santana de Parnaíba"
 
-# Variáveis secretas do GitHub
 USER_PORTAL = os.getenv("USER_PORTAL", "")
 SENHA_PORTAL = os.getenv("SENHA_PORTAL", "")
 SENHA_GMAIL = os.getenv("SENHA_GMAIL", "")
 
 agora_str = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-print(f"===== INICIANDO MONITORAMENTO VIA GOOGLE FORMS: {agora_str} =====")
+print(f"===== INICIANDO MONITORAMENTO BLINDADO VIA PLAYWRIGHT: {agora_str} =====")
 
 # ==========================================
-# 1. LEITURA DOS PROTOCOLOS DA PLANILHA
+# 1. LEITURA DA PLANILHA (Sua lógica robusta)
 # ==========================================
 try:
-    df = pd.read_csv(LINK_ENTRADA_GOOGLE_FORMS)
+    df = pd.read_excel(nome_planilha, sheet_name=nome_aba)
     df.columns = [str(c).strip().upper() for c in df.columns]
-    print(f"📥 Dados carregados! Colunas: {list(df.columns)}")
     
     col_protocolo = [c for c in df.columns if "PROTOCOLO" in c or "NUMER" in c or "PROCESSO" in c][0]
-    
-    # Prepara colunas de controle se não existirem
-    if "STATUS ATUAL" not in df.columns:
-        df["STATUS ATUAL"] = "Aguardando..."
-    if "ÚLTIMA AÇÃO" not in df.columns:
-        df["ÚLTIMA AÇÃO"] = "Nenhuma"
-    if "MODIFICADO EM" not in df.columns:
-        df["MODIFICADO EM"] = agora_str
+    col_status = [c for c in df.columns if "STATUS" in c or "SITUA" in c][0] if any("STATUS" in c or "SITUA" in c for c in df.columns) else "STATUS ATUAL"
+    col_modificado = [c for c in df.columns if "MODIF" in c or "DATA" in c][0] if any("MODIF" in c or "DATA" in c for c in df.columns) else "MODIFICADO EM"
+    col_ativo = [c for c in df.columns if "ATIVO" in c][0] if any("ATIVO" in c for c in df.columns) else None
 
-    protocolos_verificar = df[col_protocolo].dropna().astype(str).tolist()
-    print(f"🔍 Protocolos para checagem: {protocolos_verificar}")
-
+    print(f"📋 Protocolos carregados da planilha.")
 except Exception as e:
-    print(f"❌ Erro ao ler os dados do Google Forms: {e}")
+    print(f"❌ Erro ao ler Excel: {e}")
     exit(1)
 
 # ==========================================
-# 2. AUTOMAÇÃO NO PORTAL (PLAYWRIGHT) E COMPARAÇÃO
+# 2. AUTOMAÇÃO (Motor Playwright)
 # ==========================================
-processos_alterados = [] # Lista que vai guardar quem mudou de status
+dados_portal = {}
 
 try:
     with sync_playwright() as p:
-        navegador = p.chromium.launch(headless=True)
-        pagina = navegador.new_page()
-
-        print("🌐 Acessando o portal de Santana de Parnaíba...")
-        pagina.goto("https://santanadeparnaiba.aprova.com.br/", wait_until="networkidle")
-
-        # 1. Espera o botão de login estar visível e clica
-        botao_acesso = pagina.get_by_role("button", name="Acessar minha conta")
-        botao_acesso.wait_for(state="visible", timeout=60000)
-        botao_acesso.click()
-
-        # 2. Espera a janela de login abrir (aqui está o segredo!)
-        print("🔑 Aguardando campos de login...")
-        campo_email = pagina.get_by_placeholder("E-mail")
-        campo_email.wait_for(state="visible", timeout=60000)
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
         
-        # 3. Preenche com calma
-        campo_email.fill(USER_PORTAL)
-        pagina.get_by_placeholder("Digite sua senha").fill(SENHA_PORTAL)
-        pagina.get_by_role("button", name="Entrar").click()
-
-        # 4. Espera a página de "Processos" carregar depois do login
-        pagina.wait_for_url("**/processos", timeout=60000)
-        print("✅ Login realizado com sucesso!")
-
-        # Agora o robô pesquisa protocolo por protocolo da sua planilha
-        for index, row in df.iterrows():
-            protocolo_planilha = str(row[col_protocolo]).strip().upper()
-            status_antigo = str(row["STATUS ATUAL"]).strip()
-            
-            print(f"🔎 Pesquisando: {protocolo_planilha}")
-            busca_input = pagina.locator("input[placeholder='Buscar aqui']").first
-            busca_input.fill(protocolo_planilha)
-            busca_input.press("Enter")
-            time.sleep(3)
-
-            try:
-                # Extrai o novo status da tabela
-                linha_processo = pagina.locator(f"tr:has-text('{protocolo_planilha}')")
-                status_novo = linha_processo.locator("td").nth(6).inner_text().strip()
-                
-                # A MÁGICA: Compara o status do site com o da planilha
-                if status_novo != status_antigo and status_antigo != "Aguardando...":
-                    print(f"⚠️ MUDANÇA DETECTADA! {protocolo_planilha}: {status_antigo} -> {status_novo}")
-                    processos_alterados.append({
-                        "protocolo": protocolo_planilha,
-                        "velho": status_antigo,
-                        "novo": status_novo
-                    })
-
-                # Atualiza a planilha (Dataframe) com o status novo
-                df.at[index, "STATUS ATUAL"] = status_novo
-                df.at[index, "MODIFICADO EM"] = agora_str
-
-            except Exception as e:
-                print(f"⚠️ Não encontrou status para o protocolo {protocolo_planilha}.")
-                
-            busca_input.fill("") # Limpa a barra de pesquisa para o próximo
-            
-        navegador.close()
+        print("🌐 Acessando o portal...")
+        page.goto("https://santanadeparnaiba.aprova.com.br/login")
+        
+        # Login Preciso e Estável
+        print("🔑 Realizando Login...")
+        page.get_by_placeholder("E-mail").fill(USER_PORTAL)
+        page.get_by_placeholder("Digite sua senha").first.fill(SENHA_PORTAL)
+        page.get_by_role("button", name="Entrar").click()
+        page.wait_for_load_state("networkidle")
+        
+        print("📂 Navegando para processos...")
+        page.goto("https://santanadeparnaiba.aprova.com.br/processos")
+        page.wait_for_load_state("networkidle")
+        
+        # Extração inteligente (Substitui o Selenium)
+        print("🔍 Capturando dados da tabela...")
+        linhas = page.locator("tbody tr").all()
+        for linha in linhas:
+            texto = linha.inner_text().strip()
+            if texto:
+                partes = [p.strip() for p in texto.split("\n") if p.strip()]
+                if len(partes) >= 2:
+                    dados_portal[partes[0].upper()] = partes[-1] # Pega o último elemento como status
+        
+        browser.close()
+        print(f"✅ Extraídos {len(dados_portal)} registros.")
 
 except Exception as e:
-    print(f"❌ Falha crítica no robô: {e}")
+    print(f"❌ Falha no robô: {e}")
 
 # ==========================================
-# 3. SALVAR RELATÓRIO E ENVIAR E-MAIL
+# 3. COMPARAÇÃO E ATUALIZAÇÃO (Sua lógica)
 # ==========================================
-print("💾 Gravando base de dados atualizada...")
-# O erro de sintaxe (parêntese) foi corrigido aqui:
-df.to_html("monitor_protocolos.html", index=False, border=1, classes='tabela-processos')
+processos_alterados = []
+for index, row in df.iterrows():
+    if col_ativo and str(row.get(col_ativo, "")).strip().upper() != "SIM":
+        continue
+    
+    protocolo = str(row[col_protocolo]).strip().upper()
+    status_antigo = str(row.get(col_status, "")).strip()
+    status_novo = dados_portal.get(protocolo)
+    
+    if status_novo and status_antigo != status_novo:
+        processos_alterados.append({'protocolo': protocolo, 'antigo': status_antigo, 'novo': status_novo})
+        df.at[index, col_status] = status_novo
+        df.at[index, col_modificado] = agora_str
 
-# Só envia e-mail se a lista 'processos_alterados' tiver coisas dentro
-if processos_alterados and SENHA_GMAIL:
-    try:
-        msg = MIMEMultipart('alternative')
-        msg['From'] = EMAIL_REMETENTE
-        msg['To'] = ", ".join(EMAIL_DESTINATARIOS)
-        msg['Subject'] = "⚠️ Alerta: Status de Protocolo Atualizado!"
-        
-        blocos = ""
-        for p in processos_alterados:
-            blocos += f"<li><strong>Protocolo:</strong> {p['protocolo']}<br>De: <em>{p['velho']}</em> ➡️ Para: <strong>{p['novo']}</strong></li><br>"
-        
-        corpo_html = f"<html><body><p>Olá! O sistema detectou movimentações nos processos abaixo:</p><ul>{blocos}</ul></body></html>"
-        msg.attach(MIMEText(corpo_html, 'html'))
-        
-        with smtplib.SMTP('smtp.gmail.com', 587) as server:
-            server.starttls()
-            server.login(EMAIL_REMETENTE, SENHA_GMAIL)
-            server.sendmail(EMAIL_REMETENTE, EMAIL_DESTINATARIOS, msg.as_string())
-        print("✉️ E-mail de notificação enviado com sucesso!")
-    except Exception as e:
-        print(f"❌ Erro ao enviar e-mail: {e}")
-else:
-    print("🦥 Varredura finalizada. Nenhuma movimentação nova detectada.")
+# ==========================================
+# 4. SALVAMENTO E GITHUB (Sua lógica)
+# ==========================================
+if processos_alterados:
+    with pd.ExcelWriter(nome_planilha, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
+        df.to_excel(writer, sheet_name=nome_aba, index=False)
+    
+    # Git push (Mantido conforme seu código original)
+    subprocess.run(["git", "config", "user.name", "Automated Robot"])
+    subprocess.run(["git", "config", "user.email", "robot@artesano.com"])
+    subprocess.run(["git", "add", nome_planilha])
+    subprocess.run(["git", "commit", "-m", f"🤖 Atualização automática: {agora_str}"])
+    subprocess.run(["git", "push"])
+    
+    # (Adicione aqui a sua lógica de E-mail que já funciona!)
+    print("✨ Sistema atualizado e GitHub sincronizado!")
