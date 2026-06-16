@@ -121,8 +121,9 @@ for index, row in df.iterrows():
 # ==========================================
 # 4. SALVAMENTO E ENVIO DE E-MAIL
 # ==========================================
-df.to_csv("monitor_protocolos.csv", index=False, encoding="utf-8-sig", sep=";")
-print("💾 Base salva com sucesso em monitor_protocolos.csv!")
+# MUDANÇA: Salvando como arquivo .tsv usando tabulação ('\t') como separador
+df.to_csv("monitor_protocolos.tsv", index=False, encoding="utf-8-sig", sep="\t")
+print("💾 Base salva com sucesso em monitor_protocolos.tsv!")
 
 if processos_alterados and SENHA_GMAIL:
     try:
