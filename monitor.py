@@ -10,7 +10,6 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.action_chains import ActionChains
 
 # ==========================================
 # CONFIGURAÇÕES E LINKS
@@ -59,7 +58,6 @@ options.add_argument("--disable-dev-shm-usage")
 
 driver = webdriver.Chrome(options=options)
 wait = WebDriverWait(driver, 35)
-actions = ActionChains(driver)
 
 try:
     print("🌐 Acessando o portal de Santana de Parnaíba...")
@@ -69,8 +67,7 @@ try:
     if len(inputs) >= 2:
         inputs[0].send_keys(USER_PORTAL)
         inputs[1].send_keys(SENHA_PORTAL)
-        botao = driver.find_element(By.CSS_SELECTOR, "button[type='submit']")
-        actions.move_to_element(botao).click().perform()
+        driver.find_element(By.CSS_SELECTOR, "button[type='submit']").click()
         
     time.sleep(15)
     driver.get("https://santanadeparnaiba.aprova.com.br/processos")
@@ -90,54 +87,4 @@ finally:
     driver.quit()
 
 # ==========================================
-# 3. ATUALIZAÇÃO DA BASE DE DADOS
-# ==========================================
-processos_alterados = []
-
-for index, row in df.iterrows():
-    if col_ativo and str(row.get(col_ativo, "")).strip().upper() != "SIM": continue
-    protocolo_planilha = str(row[col_protocolo]).strip().upper()
-    status_antigo = str(row.get(col_status, "")).strip()
-    
-    dados_novos = None
-    for k, v in dados_portal.items():
-        if protocolo_planilha in k or k in protocolo_planilha:
-            dados_novos = v  
-            break
-            
-    if dados_novos:
-        status_novo = dados_novos[1] if len(dados_novos) > 1 else dados_novos[0]
-        df.at[index, col_status] = status_novo
-        df.at[index, col_acao] = status_novo
-        df.at[index, col_modificado] = agora_str
-        
-        # Insere os dados na sequência exata das colunas do portal
-        for i, valor in enumerate(dados_novos):
-            df.at[index, f"COLUNA_{i+1}"] = valor
-        
-        if status_antigo != status_novo and "Aguardando" not in status_antigo:
-            processos_alterados.append({'protocolo': protocolo_planilha, 'antigo': status_antigo, 'novo': status_novo})
-
-# ==========================================
-# 4. SALVAMENTO EM FORMATO TABELA HTML
-# ==========================================
-# Transforma a tabela de dados num formato HTML que o Google Sheets lê perfeitamente
-df.to_html("monitor_protocolos.html", index=False, encoding="utf-8-sig")
-print("💾 Base salva com sucesso em monitor_protocolos.html!")
-
-if processos_alterados and SENHA_GMAIL:
-    try:
-        msg = MIMEMultipart('alternative')
-        msg['From'] = EMAIL_REMETENTE
-        msg['To'] = ", ".join(EMAIL_DESTINATARIOS)
-        msg['Subject'] = "⚠️ Alerta: Status de Protocolo Atualizado!"
-        blocos = "".join([f"<li><strong>Protocolo:</strong> {p['protocolo']} | <strong>Novo Status:</strong> {p['novo']}</li>" for p in processos_alterados])
-        corpo_html = f"<html><body><p>Olá! O relatório foi atualizado:</p><ul>{blocos}</ul></body></html>"
-        msg.attach(MIMEText(corpo_html, 'html'))
-        with smtplib.SMTP('smtp.gmail.com', 587) as server:
-            server.starttls()
-            server.login(EMAIL_REMETENTE, SENHA_GMAIL)
-            server.sendmail(EMAIL_REMETENTE, EMAIL_DESTINATARIOS, msg.as_string())
-        print("✉️ E-mail enviado!")
-    except Exception as e:
-        print(f"❌ Erro e-mail: {e}")
+# 3. ATUAL
