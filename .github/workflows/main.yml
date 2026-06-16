@@ -1,0 +1,29 @@
+name: Monitor
+on:
+  schedule:
+    - cron: '0 11,21 * * *'
+  workflow_dispatch:
+jobs:
+  job:
+    runs-on: ubuntu-latest
+    permissions: {contents: write}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: |
+          pip install -r requirements.txt
+          playwright install chromium
+      - name: Executar
+        env:
+          USER_PORTAL: ${{ secrets.USER_PORTAL }}
+          SENHA_PORTAL: ${{ secrets.SENHA_PORTAL }}
+          SENHA_GMAIL: ${{ secrets.SENHA_GMAIL }}
+        run: python monitor.py
+      - name: Commit e Push
+        run: |
+          git config user.name "Robot"
+          git config user.email "bot@github.com"
+          git add protocolos.csv
+          git commit -m "Auto-update status" || exit 0
+          git push
