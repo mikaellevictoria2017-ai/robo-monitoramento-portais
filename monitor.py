@@ -18,7 +18,6 @@ from selenium.webdriver.common.action_chains import ActionChains
 EMAIL_REMETENTE = "mikaellevictoria2017@gmail.com"
 EMAIL_DESTINATARIOS = ["santos.micaelle2006@gmail.com"]
 
-# 🎯 LINK LONGO DO SEU GOOGLE FORMS:
 LINK_ENTRADA_GOOGLE_FORMS = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRh-7SIMziaShR1rqLpSnBabRJAIceLSZ6dO0zklOcOg_twfc9G6cwdRGQk1vL2y6lniAmH0mSh6Xw1/pub?gid=1314499551&single=true&output=csv"
 
 USER_PORTAL = os.getenv("USER_PORTAL", "")
@@ -89,7 +88,6 @@ try:
     driver.get("https://santanadeparnaiba.aprova.com.br/processos")
     time.sleep(10)
     
-    # Captura as linhas da tabela de processos de forma estrita
     linhas = driver.find_elements(By.XPATH, "//tbody/tr | //tr")
     
     for linha in linhas:
@@ -98,7 +96,7 @@ try:
             partes = [p.strip() for p in texto_linha.split("\n") if p.strip()]
             if len(partes) >= 1:
                 protocolo_web = partes[0].upper().strip()
-                # Salva todas as partes na sequência exata das colunas do portal
+                # Guarda a lista inteira na ordem exata das colunas do portal
                 dados_portal[protocolo_web] = partes
 
     print(f"✅ Extraídos {len(dados_portal)} registros completos do site.")
@@ -126,13 +124,12 @@ for index, row in df.iterrows():
             break
             
     if dados_novos:
-        # Preenche os status de controle padrão do robô
         status_novo = dados_novos[1] if len(dados_novos) > 1 else dados_novos[0]
         df.at[index, col_status] = status_novo
         df.at[index, col_acao] = status_novo
         df.at[index, col_modificado] = agora_str
         
-        # Cria as colunas exatamente na mesma sequência do portal
+        # Cria colunas sequenciais seguindo estritamente a ordem do portal
         for i, valor in enumerate(dados_novos):
             df.at[index, f"COLUNA_{i+1}"] = valor
         
@@ -140,17 +137,16 @@ for index, row in df.iterrows():
             print(f"⚠️ MUDANÇA DETECTADA NO PROTOCOLO: {protocolo_planilha}")
             processos_alterados.append({'protocolo': protocolo_planilha, 'antigo': status_antigo, 'novo': status_novo})
 
-# Garante a ordem: colunas originais primeiro, seguidas pelas colunas do portal em ordem
 df.columns = colunas_originais + [c for c in df.columns if c not in colunas_originais]
 
 # ==========================================
 # 4. SALVA O RELATÓRIO FINAL EM CSV NO GITHUB
 # ==========================================
-print("💾 Gravando base de dados atualizada...")
-# O sep=";" força o Google Sheets a abrir cada dado na sua coluna correta automaticamente
+print("💾 Gravando base de dados actualizada...")
+# Salvando com ponto e vírgula para alinhar cada coisa na sua coluna na planilha
 df.to_csv("monitor_protocolos.csv", index=False, encoding="utf-8-sig", sep=";")
 
-if procesos_alterados and SENHA_GMAIL:
+if processos_alterados and SENHA_GMAIL:
     try:
         msg = MIMEMultipart('alternative')
         msg['From'] = EMAIL_REMETENTE
