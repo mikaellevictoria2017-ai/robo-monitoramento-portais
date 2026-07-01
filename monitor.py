@@ -117,32 +117,35 @@ for index, row in df.iterrows():
 # ==========================================
 # 4. ORDENAÇÃO FINAL E LIMPEZA
 # ==========================================
-# 1. Lista EXATA dos títulos que você quer e na ordem desejada
-ordem_final = [
-    "PROTOCOLO ATIVO?",
-    "NÚMERO DO PROTOCOLO",
-    "ASSUNTO / TIPO",
-    "REQUERENTE / PROPRIETÁRIO",
-    "ENDEREÇO",
-    "STATUS ANTIGO",
-    "STATUS ATUAL",
-    "MODIFICADO POR ÚLTIMO",
-    "DATA DE ATUALIZAÇÃO DO PORTAL",
-    "CÓDIGO ATUALIZADO EM:"
+
+# 1. Define a ordem fixa que você quer (B até K)
+# A ordem aqui dentro define exatamente a posição das colunas no HTML
+ordem_fixa = [
+    "PROTOCOLO ATIVO?",             # Coluna B
+    "NÚMERO DO PROTOCOLO",          # Coluna C
+    "ASSUNTO / TIPO",               # Coluna D
+    "REQUERENTE / PROPRIETÁRIO",    # Coluna E
+    "ENDEREÇO",                     # Coluna F
+    "STATUS ANTIGO",                # Coluna G
+    "STATUS ATUAL",                 # Coluna H
+    "MODIFICADO POR ÚLTIMO",        # Coluna I
+    "DATA DE ATUALIZAÇÃO DO PORTAL",# Coluna J
+    "CÓDIGO ATUALIZADO EM:"         # Coluna K
 ]
 
-# 2. Renomeia as colunas para bater com a sua lista, se necessário
+# 2. Renomeia colunas para bater com a ordem fixa, se necessário
 df = df.rename(columns={
     "MODIFICADO EM": "CÓDIGO ATUALIZADO EM:",
     "ENDEREÇO / LOCAL": "ENDEREÇO"
 })
 
-# 3. SEGURANÇA: Remove o Carimbo de Data/Hora se ele estiver lá
+# 3. Remove o Carimbo se ele existir
 if "CARIMBO DE DATA/HORA" in df.columns:
     df.drop(columns=["CARIMBO DE DATA/HORA"], inplace=True)
 
-# 4. Filtra APENAS as colunas que você listou, descartando todo o resto
-df = df[[c for c in ordem_final if c in df.columns]]
+# 4. FORÇA A ORDEM: Cria um novo dataframe apenas com essas colunas na ordem da lista
+# Se alguma coluna não existir, ele ignora
+df = df.reindex(columns=ordem_fixa)
 # ==========================================
 # 5. SALVAMENTO HTML
 # ==========================================
