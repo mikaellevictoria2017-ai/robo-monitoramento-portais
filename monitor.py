@@ -37,11 +37,9 @@ try:
     col_ativo = [c for c in df.columns if "ATIVO" in c][0] if any("ATIVO" in c for c in df.columns) else None
     
     if "STATUS ATUAL" not in df.columns: df["STATUS ATUAL"] = "Aguardando primeira checagem..."
-    if "ÚLTIMA AÇÃO" not in df.columns: df["ÚLTIMA AÇÃO"] = "Nenhuma"
     if "MODIFICADO EM" not in df.columns: df["MODIFICADO EM"] = agora_str
         
     col_status = "STATUS ATUAL"
-    col_acao = "ÚLTIMA AÇÃO"
     col_modificado = "MODIFICADO EM"
     protocolos_verificar = df[col_protocolo].dropna().astype(str).tolist()
 except Exception as e:
@@ -108,37 +106,45 @@ for index, row in df.iterrows():
         status_novo = dados_novos[6] if len(dados_novos) > 6 else (dados_novos[1] if len(dados_novos) > 1 else "Sem status")
         
         df.at[index, col_status] = status_novo
-        df.at[index, col_acao] = status_novo
         df.at[index, col_modificado] = agora_str
         
-        # Mapeando as colunas extras baseadas na sua imagem
+        # Mapeando as colunas conforme o seu pedido
         if len(dados_novos) > 1: df.at[index, "ASSUNTO / TIPO"] = dados_novos[1]
         if len(dados_novos) > 2: df.at[index, "REQUERENTE / PROPRIETÁRIO"] = dados_novos[2]
         if len(dados_novos) > 3: df.at[index, "ENDEREÇO / LOCAL"] = dados_novos[3]
         if len(dados_novos) > 5: df.at[index, "DATA DE ATUALIZAÇÃO NO PORTAL"] = dados_novos[5]
-        if len(dados_novos) > 7: df.at[index, "OUTROS DETALHES"] = dados_novos[7]
+        if len(dados_novos) > 7: df.at[index, "MODIFICADO POR ÚLTIMO"] = dados_novos[7]
         
         if status_antigo != status_novo and "Aguardando" not in status_antigo:
             processos_alterados.append({'protocolo': protocolo_planilha, 'antigo': status_antigo, 'novo': status_novo})
 
 # ==========================================
-# 4. ORDENAÇÃO E LIMPEZA (SUMINDO COM O COLUNA_X)
+# 4. ORDENAÇÃO E LIMPEZA TOTAL
 # ==========================================
-# Mantemos as colunas originais do Forms (Carimbo de tempo, etc) e adicionamos as nossas
-colunas_desejadas = colunas_originais + [
+# Deleta a ÚLTIMA AÇÃO se ela tiver vindo do Google Forms
+if "ÚLTIMA AÇÃO" in df.columns:
+    df.drop(columns=["ÚLTIMA AÇÃO"], inplace=True)
+
+colunas_finais = []
+
+# 1. Puxa as colunas originais do seu Forms primeiro (Data, Protocolo, Ativo)
+colunas_de_controle = ["STATUS ATUAL", "MODIFICADO EM", "ASSUNTO / TIPO", "ÚLTIMA AÇÃO"]
+for c in colunas_originais:
+    if str(c).strip().upper() not in colunas_de_controle and str(c).strip().upper() in df.columns:
+        colunas_finais.append(str(c).strip().upper())
+
+# 2. Organiza as colunas do robô exatamente na ordem lógica para a sua planilha
+ordem_robo = [
     "ASSUNTO / TIPO",
     "REQUERENTE / PROPRIETÁRIO",
     "ENDEREÇO / LOCAL",
-    "OUTROS DETALHES",
-    "DATA DE ATUALIZAÇÃO NO PORTAL",
     "STATUS ATUAL",
-    "ÚLTIMA AÇÃO",
+    "DATA DE ATUALIZAÇÃO NO PORTAL",
+    "MODIFICADO POR ÚLTIMO",
     "MODIFICADO EM"
 ]
 
-# Remove duplicações e aplica o filtro
-colunas_finais = []
-for c in colunas_desejadas:
+for c in ordem_robo:
     if c in df.columns and c not in colunas_finais:
         colunas_finais.append(c)
 
