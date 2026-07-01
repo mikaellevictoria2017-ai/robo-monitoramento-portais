@@ -30,6 +30,7 @@ print(f"===== INICIANDO MONITORAMENTO: {agora_str} =====")
 # ==========================================
 try:
     df = pd.read_csv(LINK_ENTRADA_GOOGLE_FORMS)
+    colunas_originais = list(df.columns)
     df.columns = [str(c).strip().upper() for c in df.columns]
     
     col_protocolo = [c for c in df.columns if "PROTOCOLO" in c or "NUMER" in c or "PROCESSO" in c][0]
@@ -87,4 +88,81 @@ finally:
     driver.quit()
 
 # ==========================================
-# 3. ATUAL
+# 3. MAPEAMENTO EXATO DOS DADOS
+# ==========================================
+processos_alterados = []
+
+for index, row in df.iterrows():
+    if col_ativo and str(row.get(col_ativo, "")).strip().upper() != "SIM": continue
+    protocolo_planilha = str(row[col_protocolo]).strip().upper()
+    status_antigo = str(row.get(col_status, "")).strip()
+    
+    dados_novos = None
+    for k, v in dados_portal.items():
+        if protocolo_planilha in k or k in protocolo_planilha:
+            dados_novos = v  
+            break
+            
+    if dados_novos:
+        # Pega o Status REAL (que está na posição 6)
+        status_novo = dados_novos[6] if len(dados_novos) > 6 else (dados_novos[1] if len(dados_novos) > 1 else "Sem status")
+        
+        df.at[index, col_status] = status_novo
+        df.at[index, col_acao] = status_novo
+        df.at[index, col_modificado] = agora_str
+        
+        # Mapeando as colunas extras baseadas na sua imagem
+        if len(dados_novos) > 1: df.at[index, "ASSUNTO / TIPO"] = dados_novos[1]
+        if len(dados_novos) > 2: df.at[index, "REQUERENTE / PROPRIETÁRIO"] = dados_novos[2]
+        if len(dados_novos) > 3: df.at[index, "ENDEREÇO / LOCAL"] = dados_novos[3]
+        if len(dados_novos) > 5: df.at[index, "DATA DE ATUALIZAÇÃO NO PORTAL"] = dados_novos[5]
+        if len(dados_novos) > 7: df.at[index, "OUTROS DETALHES"] = dados_novos[7]
+        
+        if status_antigo != status_novo and "Aguardando" not in status_antigo:
+            processos_alterados.append({'protocolo': protocolo_planilha, 'antigo': status_antigo, 'novo': status_novo})
+
+# ==========================================
+# 4. ORDENAÇÃO E LIMPEZA (SUMINDO COM O COLUNA_X)
+# ==========================================
+# Mantemos as colunas originais do Forms (Carimbo de tempo, etc) e adicionamos as nossas
+colunas_desejadas = colunas_originais + [
+    "ASSUNTO / TIPO",
+    "REQUERENTE / PROPRIETÁRIO",
+    "ENDEREÇO / LOCAL",
+    "OUTROS DETALHES",
+    "DATA DE ATUALIZAÇÃO NO PORTAL",
+    "STATUS ATUAL",
+    "ÚLTIMA AÇÃO",
+    "MODIFICADO EM"
+]
+
+# Remove duplicações e aplica o filtro
+colunas_finais = []
+for c in colunas_desejadas:
+    if c in df.columns and c not in colunas_finais:
+        colunas_finais.append(c)
+
+df = df[colunas_finais]
+
+# ==========================================
+# 5. SALVAMENTO EM HTML
+# ==========================================
+df.to_html("monitor_protocolos.html", index=False, encoding="utf-8-sig")
+print("💾 Base salva com sucesso em monitor_protocolos.html!")
+
+if processos_alterados and SENHA_GMAIL:
+    try:
+        msg = MIMEMultipart('alternative')
+        msg['From'] = EMAIL_REMETENTE
+        msg['To'] = ", ".join(EMAIL_DESTINATARIOS)
+        msg['Subject'] = "⚠️ Alerta: Status de Protocolo Atualizado!"
+        blocos = "".join([f"<li><strong>Protocolo:</strong> {p['protocolo']} | <strong>Novo Status:</strong> {p['novo']}</li>" for p in processos_alterados])
+        corpo_html = f"<html><body><p>Olá! O relatório foi atualizado:</p><ul>{blocos}</ul></body></html>"
+        msg.attach(MIMEText(corpo_html, 'html'))
+        with smtplib.SMTP('smtp.gmail.com', 587) as server:
+            server.starttls()
+            server.login(EMAIL_REMETENTE, SENHA_GMAIL)
+            server.sendmail(EMAIL_REMETENTE, EMAIL_DESTINATARIOS, msg.as_string())
+        print("✉️ E-mail enviado!")
+    except Exception as e:
+        print(f"❌ Erro e-mail: {e}")
