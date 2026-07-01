@@ -35,7 +35,9 @@ try:
     
     col_protocolo = [c for c in df.columns if "PROTOCOLO" in c or "NUMER" in c or "PROCESSO" in c][0]
     col_ativo = [c for c in df.columns if "ATIVO" in c][0] if any("ATIVO" in c for c in df.columns) else None
-    
+
+    if "STATUS ANTIGO" not in df.columns:
+    df["STATUS ANTIGO"] = "Nenhum"
     if "STATUS ATUAL" not in df.columns: df["STATUS ATUAL"] = "Aguardando primeira checagem..."
     if "MODIFICADO EM" not in df.columns: df["MODIFICADO EM"] = agora_str
         
