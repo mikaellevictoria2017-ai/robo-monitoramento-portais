@@ -114,35 +114,31 @@ for index, row in df.iterrows():
         if len(dados_novos) > 5: df.at[index, "DATA DE ATUALIZAÇÃO NO PORTAL"] = dados_novos[5]
         if len(dados_novos) > 7: df.at[index, "MODIFICADO POR ÚLTIMO"] = dados_novos[7]
 
+# ==========================================
 # 4. ORDENAÇÃO FINAL E LIMPEZA
 # ==========================================
-# Remove colunas antigas se existirem
+# Remove coluna antiga se existir
 if "ÚLTIMA AÇÃO" in df.columns: df.drop(columns=["ÚLTIMA AÇÃO"], inplace=True)
-if "MODIFICADO POR ÚLTIMO" in df.columns: df.drop(columns=["MODIFICADO POR ÚLTIMO"], inplace=True)
 
-# Lista na ordem exata solicitada (B até K)
 ordem_robo = [
     "PROTOCOLO ATIVO?",
     "NÚMERO DO PROTOCOLO",
     "ASSUNTO / TIPO",
     "REQUERENTE / PROPRIETÁRIO",
-    "ENDEREÇO",
+    "ENDEREÇO / LOCAL",
     "STATUS ANTIGO",
     "STATUS ATUAL",
     "MODIFICADO POR ÚLTIMO",
-    "DATA DE ATUALIZAÇÃO DO PORTAL",
-    "CÓDIGO ATUALIZADO EM:"
+    "DATA DE ATUALIZAÇÃO NO PORTAL",
+    "MODIFICADO EM"
 ]
 
-# Ajuste para garantir que o código use os nomes corretos ao salvar dados
-# (Isso garante que o robô encontre as colunas onde deve escrever)
-df = df.rename(columns={
-    "MODIFICADO EM": "CÓDIGO ATUALIZADO EM:",
-    "ENDEREÇO / LOCAL": "ENDEREÇO"
-})
-
-# Filtra e organiza
+# Filtra apenas o que existe no DataFrame
 colunas_finais = [c for c in ordem_robo if c in df.columns]
+# Adiciona colunas extras do forms que não foram citadas
+for c in df.columns:
+    if c not in colunas_finais: colunas_finais.append(c)
+
 df = df[colunas_finais]
 
 # ==========================================
