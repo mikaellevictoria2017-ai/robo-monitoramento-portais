@@ -104,6 +104,13 @@ for index, row in df.iterrows():
     if dados_novos:
         # Pega o Status REAL (que está na posição 6)
         status_novo = dados_novos[6] if len(dados_novos) > 6 else (dados_novos[1] if len(dados_novos) > 1 else "Sem status")
+
+        # --- AQUI ESTÁ A MUDANÇA ---
+        # Se o status mudou, salve o valor antigo ANTES de atualizar
+        if status_antigo != status_novo and "Aguardando" not in status_antigo:
+            df.at[index, "STATUS ANTIGO"] = status_antigo
+            processos_alterados.append({'protocolo': protocolo_planilha, 'antigo': status_antigo, 'novo': status_novo})
+        # ---------------------------
         
         df.at[index, col_status] = status_novo
         df.at[index, col_modificado] = agora_str
@@ -138,6 +145,7 @@ ordem_robo = [
     "ASSUNTO / TIPO",
     "REQUERENTE / PROPRIETÁRIO",
     "ENDEREÇO / LOCAL",
+    "STATUS ANTIGO",
     "STATUS ATUAL",
     "DATA DE ATUALIZAÇÃO NO PORTAL",
     "MODIFICADO POR ÚLTIMO",
