@@ -36,18 +36,19 @@ try:
     col_protocolo = [c for c in df.columns if "PROTOCOLO" in c or "NUMER" in c or "PROCESSO" in c][0]
     col_ativo = [c for c in df.columns if "ATIVO" in c][0] if any("ATIVO" in c for c in df.columns) else None
     
-    if "STATUS ATUAL" not in df.columns: df["STATUS ATUAL"] = "Aguardando primeira checagem..."
+    if "STATUS ATUAL" not in df.columns: df["STATUS ATUAL"] = "Aguardando..."
+    if "STATUS ANTIGO" not in df.columns: df["STATUS ANTIGO"] = "Nenhum"
     if "MODIFICADO EM" not in df.columns: df["MODIFICADO EM"] = agora_str
         
     col_status = "STATUS ATUAL"
+    col_status_antigo = "STATUS ANTIGO"
     col_modificado = "MODIFICADO EM"
-    protocolos_verificar = df[col_protocolo].dropna().astype(str).tolist()
 except Exception as e:
     print(f"❌ Erro na leitura do Forms: {e}")
     exit(1)
 
 # ==========================================
-# 2. AUTOMAÇÃO NO PORTAL DA PREFEITURA
+# 2. AUTOMAÇÃO NO PORTAL
 # ==========================================
 dados_portal = {}
 options = Options()
@@ -59,7 +60,7 @@ driver = webdriver.Chrome(options=options)
 wait = WebDriverWait(driver, 35)
 
 try:
-    print("🌐 Acessando o portal de Santana de Parnaíba...")
+    print("🌐 Acessando o portal...")
     driver.get("https://santanadeparnaiba.aprova.com.br/login")
     time.sleep(7)
     inputs = wait.until(EC.presence_of_all_elements_located((By.TAG_NAME, "input")))
@@ -67,7 +68,7 @@ try:
         inputs[0].send_keys(USER_PORTAL)
         inputs[1].send_keys(SENHA_PORTAL)
         driver.find_element(By.CSS_SELECTOR, "button[type='submit']").click()
-        
+    
     time.sleep(15)
     driver.get("https://santanadeparnaiba.aprova.com.br/processos")
     time.sleep(10)
@@ -86,7 +87,7 @@ finally:
     driver.quit()
 
 # ==========================================
-# 3. MAPEAMENTO EXATO DOS DADOS
+# 3. MAPEAMENTO DE DADOS
 # ==========================================
 processos_alterados = []
 
@@ -95,66 +96,56 @@ for index, row in df.iterrows():
     protocolo_planilha = str(row[col_protocolo]).strip().upper()
     status_antigo = str(row.get(col_status, "")).strip()
     
-    dados_novos = None
-    for k, v in dados_portal.items():
-        if protocolo_planilha in k or k in protocolo_planilha:
-            dados_novos = v  
-            break
-            
+    dados_novos = dados_portal.get(protocolo_planilha)
+    
     if dados_novos:
-        # Pega o Status REAL (que está na posição 6)
         status_novo = dados_novos[6] if len(dados_novos) > 6 else (dados_novos[1] if len(dados_novos) > 1 else "Sem status")
+        
+        if status_antigo != status_novo and "Aguardando" not in status_antigo:
+            df.at[index, col_status_antigo] = status_antigo
+            processos_alterados.append({'protocolo': protocolo_planilha, 'antigo': status_antigo, 'novo': status_novo})
         
         df.at[index, col_status] = status_novo
         df.at[index, col_modificado] = agora_str
         
-        # Mapeando as colunas conforme o seu pedido
         if len(dados_novos) > 1: df.at[index, "ASSUNTO / TIPO"] = dados_novos[1]
         if len(dados_novos) > 2: df.at[index, "REQUERENTE / PROPRIETÁRIO"] = dados_novos[2]
         if len(dados_novos) > 3: df.at[index, "ENDEREÇO / LOCAL"] = dados_novos[3]
         if len(dados_novos) > 5: df.at[index, "DATA DE ATUALIZAÇÃO NO PORTAL"] = dados_novos[5]
         if len(dados_novos) > 7: df.at[index, "MODIFICADO POR ÚLTIMO"] = dados_novos[7]
-        
-        if status_antigo != status_novo and "Aguardando" not in status_antigo:
-            processos_alterados.append({'protocolo': protocolo_planilha, 'antigo': status_antigo, 'novo': status_novo})
 
 # ==========================================
-# 4. ORDENAÇÃO E LIMPEZA TOTAL
+# 4. ORDENAÇÃO FINAL E LIMPEZA
 # ==========================================
-# Deleta a ÚLTIMA AÇÃO se ela tiver vindo do Google Forms
-if "ÚLTIMA AÇÃO" in df.columns:
-    df.drop(columns=["ÚLTIMA AÇÃO"], inplace=True)
+# Remove coluna antiga se existir
+if "ÚLTIMA AÇÃO" in df.columns: df.drop(columns=["ÚLTIMA AÇÃO"], inplace=True)
 
-colunas_finais = []
-
-# 1. Puxa as colunas originais do seu Forms primeiro (Data, Protocolo, Ativo)
-colunas_de_controle = ["STATUS ATUAL", "MODIFICADO EM", "ASSUNTO / TIPO", "ÚLTIMA AÇÃO"]
-for c in colunas_originais:
-    if str(c).strip().upper() not in colunas_de_controle and str(c).strip().upper() in df.columns:
-        colunas_finais.append(str(c).strip().upper())
-
-# 2. Organiza as colunas do robô exatamente na ordem lógica para a sua planilha
 ordem_robo = [
+    "PROTOCOLO ATIVO?",
+    "NÚMERO DO PROTOCOLO",
     "ASSUNTO / TIPO",
     "REQUERENTE / PROPRIETÁRIO",
     "ENDEREÇO / LOCAL",
+    "STATUS ANTIGO",
     "STATUS ATUAL",
-    "DATA DE ATUALIZAÇÃO NO PORTAL",
     "MODIFICADO POR ÚLTIMO",
+    "DATA DE ATUALIZAÇÃO NO PORTAL",
     "MODIFICADO EM"
 ]
 
-for c in ordem_robo:
-    if c in df.columns and c not in colunas_finais:
-        colunas_finais.append(c)
+# Filtra apenas o que existe no DataFrame
+colunas_finais = [c for c in ordem_robo if c in df.columns]
+# Adiciona colunas extras do forms que não foram citadas
+for c in df.columns:
+    if c not in colunas_finais: colunas_finais.append(c)
 
 df = df[colunas_finais]
 
 # ==========================================
-# 5. SALVAMENTO EM HTML
+# 5. SALVAMENTO HTML
 # ==========================================
 df.to_html("monitor_protocolos.html", index=False, encoding="utf-8-sig")
-print("💾 Base salva com sucesso em monitor_protocolos.html!")
+print("💾 Base salva com sucesso!")
 
 if processos_alterados and SENHA_GMAIL:
     try:
@@ -162,13 +153,10 @@ if processos_alterados and SENHA_GMAIL:
         msg['From'] = EMAIL_REMETENTE
         msg['To'] = ", ".join(EMAIL_DESTINATARIOS)
         msg['Subject'] = "⚠️ Alerta: Status de Protocolo Atualizado!"
-        blocos = "".join([f"<li><strong>Protocolo:</strong> {p['protocolo']} | <strong>Novo Status:</strong> {p['novo']}</li>" for p in processos_alterados])
-        corpo_html = f"<html><body><p>Olá! O relatório foi atualizado:</p><ul>{blocos}</ul></body></html>"
-        msg.attach(MIMEText(corpo_html, 'html'))
+        corpo = "<html><body><ul>" + "".join([f"<li>Protocolo {p['protocolo']}: {p['antigo']} -> {p['novo']}</li>" for p in processos_alterados]) + "</ul></body></html>"
+        msg.attach(MIMEText(corpo, 'html'))
         with smtplib.SMTP('smtp.gmail.com', 587) as server:
             server.starttls()
             server.login(EMAIL_REMETENTE, SENHA_GMAIL)
             server.sendmail(EMAIL_REMETENTE, EMAIL_DESTINATARIOS, msg.as_string())
-        print("✉️ E-mail enviado!")
-    except Exception as e:
-        print(f"❌ Erro e-mail: {e}")
+    except: pass
