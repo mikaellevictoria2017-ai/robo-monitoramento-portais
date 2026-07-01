@@ -117,30 +117,32 @@ for index, row in df.iterrows():
 # ==========================================
 # 4. ORDENAÇÃO FINAL E LIMPEZA
 # ==========================================
-# Remove coluna antiga se existir
-if "ÚLTIMA AÇÃO" in df.columns: df.drop(columns=["ÚLTIMA AÇÃO"], inplace=True)
-
-ordem_robo = [
+# 1. Lista EXATA dos títulos que você quer e na ordem desejada
+ordem_final = [
     "PROTOCOLO ATIVO?",
     "NÚMERO DO PROTOCOLO",
     "ASSUNTO / TIPO",
     "REQUERENTE / PROPRIETÁRIO",
-    "ENDEREÇO / LOCAL",
+    "ENDEREÇO",
     "STATUS ANTIGO",
     "STATUS ATUAL",
     "MODIFICADO POR ÚLTIMO",
-    "DATA DE ATUALIZAÇÃO NO PORTAL",
-    "MODIFICADO EM"
+    "DATA DE ATUALIZAÇÃO DO PORTAL",
+    "CÓDIGO ATUALIZADO EM:"
 ]
 
-# Filtra apenas o que existe no DataFrame
-colunas_finais = [c for c in ordem_robo if c in df.columns]
-# Adiciona colunas extras do forms que não foram citadas
-for c in df.columns:
-    if c not in colunas_finais: colunas_finais.append(c)
+# 2. Renomeia as colunas para bater com a sua lista, se necessário
+df = df.rename(columns={
+    "MODIFICADO EM": "CÓDIGO ATUALIZADO EM:",
+    "ENDEREÇO / LOCAL": "ENDEREÇO"
+})
 
-df = df[colunas_finais]
+# 3. SEGURANÇA: Remove o Carimbo de Data/Hora se ele estiver lá
+if "CARIMBO DE DATA/HORA" in df.columns:
+    df.drop(columns=["CARIMBO DE DATA/HORA"], inplace=True)
 
+# 4. Filtra APENAS as colunas que você listou, descartando todo o resto
+df = df[[c for c in ordem_final if c in df.columns]]
 # ==========================================
 # 5. SALVAMENTO HTML
 # ==========================================
